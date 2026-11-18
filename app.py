@@ -1,2118 +1,415 @@
-import streamlit as st
+"""Perfiles de cine · Grupo 5K09-05.
+
+Una sola página que se recorre de arriba hacia abajo: primero la historia del
+proyecto (el tallo de la copa de martini) y al final la parte para explorar
+(la copa). El índice del costado salta a cada sección.
+"""
 import pandas as pd
-import altair as alt
-import numpy as np
-alt.themes.enable("dark")
-from modelado import entrenar_desde_csv
+import streamlit as st
+
+import historia as h
+
+st.set_page_config(page_title="Perfiles de cine", page_icon=":material/movie:", layout="wide")
+
+
+# ---------------------------------------------------------------------------
+# Datos y cálculos (se hacen una vez y quedan en caché)
+# ---------------------------------------------------------------------------
+@st.cache_resource(show_spinner="Entrenando los modelos…")
+def cargar():
+    return h.cargar_todo()
+
+
+silver, modelos, ratings, peliculas = cargar()
+
+
+@st.cache_data
+def usuarios_tabla():
+    return h.tabla_usuarios(modelos, silver)
+
 
 @st.cache_resource
-def cargar_modelos():
-    return entrenar_desde_csv("usuarios_generos.csv")
+def espacios():
+    return h.espacios(modelos)
 
-modelos = cargar_modelos()
+
+@st.cache_data(show_spinner="Probando de 1 a 6 grupos…")
+def evaluacion_k():
+    return h.evaluar_k(modelos)
+
 
 @st.cache_data
-def cargar_ratings():
-    return pd.read_csv("ratings_selected_users.csv")
-
-
-@st.cache_data
-def cargar_peliculas():
-    return pd.read_csv("tmdb_movies_prepared.csv")
-
-
-ratings = cargar_ratings()
-peliculas = cargar_peliculas()
-
-st.set_page_config(
-    page_title="Perfiles de cine",
-    page_icon="🎬",
-    layout="wide"
-)
-
-# =========================
-# ESTILO
-# =========================
-
-st.markdown("""
-<style>
-
-.stApp {
-    background-color: #0b0b0d;
-    color: white;
-}
-
-.block-container {
-    max-width: 1200px;
-    padding-top: 4rem;
-    padding-bottom: 4rem;
-}
-
-[data-testid="stSidebar"] {
-    background-color: #111114;
-}
-
-.titulo-rojo {
-    color: #e50914;
-    font-size: 14px;
-    font-weight: bold;
-    text-transform: uppercase;
-    letter-spacing: 2px;
-}
-
-.texto-secundario {
-    color: #bbbbc2;
-    font-size: 18px;
-}
-
-.tarjeta {
-    background-color: #161619;
-    border: 1px solid #29292e;
-    border-radius: 15px;
-    padding: 20px;
-    min-height: 105px;
-}
-
-.numero {
-    font-size: 36px;
-    font-weight: bold;
-}
-
-.descripcion {
-    color: #aaaab2;
-}
-
-.decision {
-    background-color: #151517;
-    border-left: 4px solid #e50914;
-    padding: 18px;
-    border-radius: 8px;
-}
-div.stButton > button {
-    width: 100% !important;
-    display: flex !important;
-    justify-content: flex-start !important;
-    align-items: center !important;
-    text-align: left !important;
-    padding-left: 14px !important;
-}
-
-div.stButton > button > div {
-    width: 100% !important;
-    justify-content: flex-start !important;
-    text-align: left !important;
-}
-
-div.stButton > button p {
-    width: 100% !important;
-    text-align: left !important;
-    margin: 0 !important;
-}
-
-</style>
-""", unsafe_allow_html=True)
-
-
-# =========================
-# MENÚ
-# =========================
-
-with st.sidebar:
-
-    st.title("🎬 Perfiles de cine")
-    st.caption("Ciencia de Datos · Grupo 5K09-05")
-
-    if "seccion" not in st.session_state:
-        st.session_state.seccion = "El proyecto"
-
-    def ir_a(nombre):
-        st.session_state.seccion = nombre
-
-    st.markdown("### La historia")
-
-    for nombre in [
-        "El proyecto",
-        "Los datos",
-        "Lo que encontramos",
-        "El modelo"
-    ]:
-        activo = st.session_state.seccion == nombre
-
-        st.button(
-            nombre,
-            key=f"nav_{nombre}",
-            type="primary" if activo else "tertiary",
-            width="stretch",
-            on_click=ir_a,
-            args=(nombre,)
-        )
-
-    st.markdown("### Tu turno")
-
-    for nombre in [
-        "Explorá",
-        "Recomendador"
-    ]:
-        activo = st.session_state.seccion == nombre
-
-        st.button(
-            nombre,
-            key=f"nav_{nombre}",
-            type="primary" if activo else "tertiary",
-            width="stretch",
-            on_click=ir_a,
-            args=(nombre,)
-        )
-
-    st.divider()
-
-    st.caption("MovieLens + TMDB")
-
-seccion = st.session_state.seccion
-
-
-# =========================
-# EL PROYECTO
-# =========================
-
-if seccion == "El proyecto":
-
-    st.markdown(
-        '<div class="titulo-rojo">El proyecto</div>',
-        unsafe_allow_html=True
-    )
-
-    st.title(
-        "¿Podemos encontrar usuarios con gustos similares "
-        "y usar esa similitud para recomendar películas "
-        "que todavía no calificaron?"
-    )
-
-    st.markdown(
-        """
-        <div class="texto-secundario">
-        Analizamos patrones de valoración por género y época
-        para representar usuarios, encontrar comportamientos
-        similares y orientar recomendaciones.
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-    st.write("")
-
-    c1, c2, c3 = st.columns(3)
-
-    with c1:
-        st.markdown("""
-        <div class="tarjeta">
-            <div class="numero">5.000</div>
-            <div class="descripcion">
-                usuarios seleccionados inicialmente
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with c2:
-        st.markdown("""
-        <div class="tarjeta">
-            <div class="numero">3.503</div>
-            <div class="descripcion">
-                usuarios utilizados en el modelado
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with c3:
-        st.markdown("""
-        <div class="tarjeta">
-            <div class="numero">150</div>
-            <div class="descripcion">
-                valoraciones mínimas por usuario
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    st.write("")
-    st.caption(
-        "Fuente: MovieLens para las valoraciones de usuarios "
-        "y TMDB para los metadatos de las películas."
-    )
-
-
-# =========================
-# LOS DATOS
-# =========================
-
-elif seccion == "Los datos":
-
-    st.markdown(
-        '<div class="titulo-rojo">Los datos</div>',
-        unsafe_allow_html=True
-    )
-
-    st.title(
-        "Necesitamos suficiente historial para representar "
-        "el gusto de cada usuario"
-    )
-
-    st.write(
-        """
-        Partimos de 5.000 usuarios y comparamos distintos mínimos
-        de valoraciones. Buscamos evitar perfiles construidos con
-        muy poca información sin perder demasiados usuarios.
-        """
-    )
-
-    # Datos reales del notebook
-    df_umbrales = pd.DataFrame({
-
-        "Mínimo": [
-            100,
-            150,
-            200,
-            250,
-            300,
-            400
-        ],
-
-        "Usuarios": [
-            5000,
-            3503,
-            2595,
-            1991,
-            1616,
-            1105
-        ]
-    })
-
-    # Gráfico base
-    barras = (
-        alt.Chart(df_umbrales)
-        .mark_bar(
-            cornerRadiusTopLeft=5,
-            cornerRadiusTopRight=5
-        )
-        .encode(
-
-            x=alt.X(
-                "Mínimo:O",
-                title="Mínimo de valoraciones por usuario",
-                axis=alt.Axis(labelAngle=0)
-            ),
-
-            y=alt.Y(
-                "Usuarios:Q",
-                title="Usuarios conservados",
-                scale=alt.Scale(
-                    domain=[0, 5200]
-                )
-            ),
-
-            color=alt.condition(
-
-                alt.datum.Mínimo == 150,
-
-                alt.value("#e50914"),
-
-                alt.value("#45454d")
-            ),
-
-            tooltip=[
-                alt.Tooltip(
-                    "Mínimo:O",
-                    title="Valoraciones mínimas"
-                ),
-
-                alt.Tooltip(
-                    "Usuarios:Q",
-                    title="Usuarios conservados"
-                )
-            ]
-        )
-        .properties(
-            height=380
-        )
-    )
-
-    # Números arriba de las barras
-    etiquetas = (
-        alt.Chart(df_umbrales)
-        .mark_text(
-            dy=-10,
-            fontSize=14,
-            fontWeight="bold"
-        )
-        .encode(
-
-            x="Mínimo:O",
-
-            y="Usuarios:Q",
-
-            text=alt.Text(
-                "Usuarios:Q",
-                format=","
-            ),
-
-            color=alt.value("white")
-        )
-    )
-
-    chart = (barras + etiquetas).configure_axis(
-        gridColor="#2a2a2f",
-        domainColor="#666666",
-        tickColor="#666666"
-    )
-
-    st.altair_chart(
-        chart,
-        width="stretch"
-    )
-
-    st.markdown("""
-    <div class="decision">
-
-    <b>Decisión:</b> usar un mínimo de <b>150 valoraciones</b>.
-
-    Así conservamos <b>3.503 de 5.000 usuarios</b>
-    y evitamos historiales con muy poca información.
-
-    </div>
-    """, unsafe_allow_html=True)
-
-    st.write("")
-
-    st.subheader("¿De dónde salen los datos?")
-
-    c1, c2, c3 = st.columns(3)
-
-    with c1:
-
-        st.markdown("""
-        <div class="tarjeta">
-
-        <b>⭐ MovieLens</b>
-
-        <br>
-
-        <span class="descripcion">
-        Usuario, película, puntuación
-        y fecha de valoración.
-        </span>
-
-        </div>
-        """, unsafe_allow_html=True)
-
-
-    with c2:
-
-        st.markdown("""
-        <div class="tarjeta">
-
-        <b>🎞️ TMDB</b>
-
-        <br>
-
-        <span class="descripcion">
-        Géneros, año de estreno
-        y metadatos de películas.
-        </span>
-
-        </div>
-        """, unsafe_allow_html=True)
-
-
-    with c3:
-
-        st.markdown("""
-        <div class="tarjeta">
-
-        <b>👤 Dataset final</b>
-
-        <br>
-
-        <span class="descripcion">
-        Una fila representa
-        un usuario.
-        </span>
-
-        </div>
-        """, unsafe_allow_html=True)
-
-
-    # Información técnica
-    with st.expander(
-        "Cómo lo sabemos · obtención y preparación"
-    ):
-
-        st.markdown("""
-        **Fuentes**
-
-        - MovieLens aporta ratings por usuario y película.
-        - TMDB aporta metadatos.
-        - La integración se realiza mediante Airflow.
-
-        **Unidad de análisis**
-
-        Una fila representa un usuario.
-
-        **Selección**
-
-        - Mínimo 100 → 5.000 usuarios.
-        - Mínimo 150 → 3.503 usuarios.
-        - Mínimo 200 → 2.595.
-        - Mínimo 250 → 1.991.
-        - Mínimo 300 → 1.616.
-        - Mínimo 400 → 1.105.
-
-        Se eligió **150 valoraciones** como compromiso entre
-        cantidad de información por usuario y cobertura.
-
-        **Historiales grandes**
-
-        Para usuarios con muchos ratings se procesan como máximo
-        500 valoraciones.
-
-        `cantidad_valoraciones_total` conserva el total original.
-
-        **Control de fuga**
-
-        `userId` no participa como característica del modelo.
-
-        Tampoco se utilizan columnas que ya contengan
-        la asignación de cluster.
-
-        El problema es **no supervisado**.
-        """)
-
-
-# =========================
-# LO QUE ENCONTRAMOS
-# =========================
-elif seccion == "Lo que encontramos":
-
-    st.markdown(
-        '<div class="titulo-rojo">Lo que encontramos</div>',
-        unsafe_allow_html=True
-    )
-
-    st.title(
-        "Los géneros y las épocas describen "
-        "aspectos diferentes del mismo usuario"
-    )
-
-    st.write(
-        "Cada punto representa un usuario: cuanto más cerca aparecen dos puntos, "
-        "más parecidos son sus patrones dentro de esa dimensión."
-    )
-
-    # Copiamos los resultados del modelo
-    datos = modelos.etiquetas.reset_index()
-
-    # =========================
-    # GRÁFICO DE GÉNEROS
-    # =========================
-
-    grafico_generos = (
-        alt.Chart(datos)
-        .mark_circle(
-            size=45,
-            opacity=0.55
-        )
-        .encode(
-
-            x=alt.X(
-                "G_PC1:Q",
-                title="Dimensión de género 1",
-                scale=alt.Scale(zero=False)
-            ),
-
-            y=alt.Y(
-                "G_PC2:Q",
-                title="Dimensión de género 2",
-                scale=alt.Scale(zero=False)
-            ),
-
-            color=alt.Color(
-                "nombre_genero:N",
-                title="Grupo de género",
-                scale=alt.Scale(
-                    range=[
-                        "#e50914",
-                        "#4e79a7"
-                    ]
-                )
-            ),
-
-            tooltip=[
-                alt.Tooltip(
-                    "userId:O",
-                    title="Usuario"
-                ),
-
-                alt.Tooltip(
-                    "nombre_genero:N",
-                    title="Perfil de género"
-                )
-            ]
-        )
-        .properties(
-            height=430,
-            title="Afinidades por género"
-        )
-        .interactive()
-    )
-
-
-    # =========================
-    # GRÁFICO DE ÉPOCAS
-    # =========================
-
-    grafico_decadas = (
-        alt.Chart(datos)
-        .mark_circle(
-            size=45,
-            opacity=0.55
-        )
-        .encode(
-
-            x=alt.X(
-                "D_PC1:Q",
-                title="Dimensión temporal 1",
-                scale=alt.Scale(zero=False)
-            ),
-
-            y=alt.Y(
-                "D_PC2:Q",
-                title="Dimensión temporal 2",
-                scale=alt.Scale(zero=False)
-            ),
-
-            color=alt.Color(
-                "nombre_decada:N",
-                title="Grupo temporal",
-                scale=alt.Scale(
-                    range=[
-                        "#f28e2b",
-                        "#59a14f"
-                    ]
-                )
-            ),
-
-            tooltip=[
-                alt.Tooltip(
-                    "userId:O",
-                    title="Usuario"
-                ),
-
-                alt.Tooltip(
-                    "nombre_decada:N",
-                    title="Perfil temporal"
-                )
-            ]
-        )
-        .properties(
-            height=430,
-            title="Películas calificadas según época de estreno"
-        )
-        .interactive()
-    )
-
-
-    # =========================
-    # MOSTRAR LADO A LADO
-    # =========================
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-
-        st.altair_chart(
-            grafico_generos,
-            width="stretch"
-        )
-
-        st.caption(
-            "La cercanía representa similitud en los patrones "
-            "de valoración por género."
-        )
-
-
-    with col2:
-
-        st.altair_chart(
-            grafico_decadas,
-            width="stretch"
-        )
-
-        st.caption(
-            "La cercanía representa similitud en la distribución "
-            "de películas calificadas según su época de estreno."
-        )
-
-
-    # Aclaración conceptual
-    st.caption(
-        "Importante: la época no indica qué década le gusta más al usuario; "
-        "representa cuándo fueron estrenadas las películas presentes en su historial."
-    )   
-
-
-    st.markdown("""
-    <div class="decision">
-
-    <b>Hallazgo:</b> los agrupamientos por género y por época
-    no cuentan exactamente lo mismo.
-
-    Un usuario puede parecerse a otro en sus preferencias por género
-    y, al mismo tiempo, tener un historial temporal diferente.
-
-    </div>
-    """, unsafe_allow_html=True)
-
-
-    # =========================
-    # CÓMO LO SABEMOS
-    # =========================
-
-    with st.expander(
-        "Cómo lo sabemos · hipótesis y transformaciones"
-    ):
-
-        st.markdown("""
-        **Preferencias por género**
-
-        Se compara la valoración media de cada género con
-        el promedio general del propio usuario.
-
-        Para evitar que una única película determine una preferencia,
-        se aplica suavizado:
-
-        `n / (n + 15)`
-
-        Solo se incorporan géneros con cobertura suficiente
-        entre los usuarios.
-
-        ---
-
-        **Épocas**
-
-        No se utiliza el rating promedio de cada década.
-
-        Se calcula qué proporción de las películas calificadas
-        por el usuario pertenece a cada época de estreno.
-
-        Estas proporciones se transforman mediante:
-
-        `arcsin(sqrt(p))`
-
-        ---
-
-        **Reducción dimensional**
-
-        Se aplica PCA antes de K-means.
-
-        - Géneros: 8 componentes retenidas.
-        - Décadas: 3 componentes retenidas.
-
-        Estos gráficos muestran únicamente las dos primeras
-        componentes para poder visualizar los usuarios.
-
-        K-means utiliza todas las componentes retenidas.
-
-        ---
-
-        **Resultado**
-
-        No encontramos evidencia de asociación entre los grupos
-        de género y los grupos temporales.
-
-        - χ²: `p ≈ 0,9915`
-        - V de Cramér: aproximadamente `0`
-
-        Esto sugiere que ambas dimensiones aportan
-        información complementaria.
-        """)
-
-
-
-# =========================
-# MODELO
-# =========================
-
-elif seccion == "El modelo":
-
-    st.markdown(
-        '<div class="titulo-rojo">El modelo</div>',
-        unsafe_allow_html=True
-    )
-
-    st.title(
-        "Separar géneros y épocas conserva información "
-        "que se pierde al juntarlos"
-    )
-
-    st.write(
-    "Probamos un modelo conjunto, pero su agrupamiento terminó "
-    "pareciéndose casi por completo al modelo temporal. "
-    "Por eso conservamos géneros y épocas como dos dimensiones separadas."
-    )
-
-    # =========================
-    # COMPARACIÓN DE MODELOS
-    # =========================
-
-
-
-    st.markdown("""
-    <div class="decision">
-
-    <b>Decisión:</b> mantener dos modelos separados.
-
-    El modelo conjunto reproduce principalmente la estructura temporal
-    y prácticamente no conserva el agrupamiento obtenido a partir de géneros.
-
-    </div>
-    """, unsafe_allow_html=True)
-
-
-    # =========================
-    # COMPARACIÓN DEL MODELO CONJUNTO
-    # =========================
-
-    st.subheader(
-        "¿A cuál de los dos modelos se parece el conjunto?"
-    )
-
-    ari = pd.DataFrame({
-        "Comparación": [
-            "Con décadas",
-            "Con géneros"
-        ],
-        "ARI": [
-            0.922,
-            0.0
-        ]
-    })
-
-    barras_ari = (
-        alt.Chart(ari)
-        .mark_bar(
-            cornerRadiusTopRight=6,
-            cornerRadiusBottomRight=6
-        )
-        .encode(
-            y=alt.Y(
-                "Comparación:N",
-                sort=["Con décadas", "Con géneros"],
-                title=None
-            ),
-
-            x=alt.X(
-                "ARI:Q",
-                title="Similitud entre agrupamientos (ARI)",
-                scale=alt.Scale(domain=[0, 1])
-            ),
-
-            color=alt.condition(
-                alt.datum["Comparación"] == "Con décadas",
-                alt.value("#e50914"),
-                alt.value("#55555d")
-            ),
-
-            tooltip=[
-                "Comparación:N",
-                alt.Tooltip(
-                    "ARI:Q",
-                    title="ARI",
-                    format=".3f"
-                )
-            ]
-        )
-    )
-
-    texto_ari = (
-        alt.Chart(ari)
-        .mark_text(
-            align="left",
-            dx=8,
-            fontWeight="bold",
-            color="white"
-        )
-        .encode(
-            y=alt.Y(
-                "Comparación:N",
-                sort=["Con décadas", "Con géneros"]
-            ),
-
-            x="ARI:Q",
-
-            text=alt.Text(
-                "ARI:Q",
-                format=".3f"
-            )
-        )
-    )
-
-    grafico_ari = (
-        barras_ari + texto_ari
-    ).properties(
-        height=180
-    ).configure_axis(
-        gridColor="#2a2a2f",
-        domainColor="#666666",
-        tickColor="#666666"
-    )
-
-    st.altair_chart(
-        grafico_ari,
-        width="stretch"
-    )
-
-    st.caption(
-        "Un ARI cercano a 1 indica que dos agrupamientos son muy parecidos. "
-        "El modelo conjunto coincide fuertemente con el temporal y casi nada con el de géneros."
-    )
-
-
-    # =========================
-    # CÓMO LO SABEMOS
-    # =========================
-
-    with st.expander(
-        "Cómo lo sabemos · selección y estabilidad del modelo"
-    ):
-
-        st.markdown("""
-        **Algoritmo**
-
-        Para géneros y décadas se utilizó:
-
-        `StandardScaler → PCA → K-means`
-
-        ---
-
-        **PCA**
-
-        Se conservó al menos el 80 % de la varianza.
-
-        - Géneros: 8 componentes.
-        - Décadas: 3 componentes.
-
-        Los gráficos anteriores muestran PC1 y PC2,
-        pero K-means utiliza todas las componentes retenidas.
-
-        ---
-
-        **Elección de k**
-
-        Se compararon valores de `k` entre 2 y 6.
-
-        El modelo principal quedó con:
-
-        - Géneros: `k = 2`
-        - Décadas: `k = 2`
-
-        Silhouette:
-
-        - Géneros: `0.180`
-        - Décadas: `0.424`
-        - Modelo conjunto: `0.224`
-
-        Como experimento adicional se probó `k = 5`
-        para géneros.
-
-        Permitía describir perfiles temáticos más específicos,
-        pero la separación empeoraba:
-
-        - Géneros con `k = 5`: silhouette `0.102`
-
-        Por eso no se eligió como modelo principal.
-
-        ---
-
-        **Estabilidad**
-
-        Al repetir el entrenamiento sobre submuestras del 80 %:
-
-        - ARI medio en géneros: aproximadamente `0.968`
-        - ARI medio en décadas: aproximadamente `0.990`
-
-        Esto indica que los grupos son bastante estables
-        frente a cambios moderados en la muestra.
-
-        ---
-
-        **Modelo conjunto**
-
-        El modelo que mezclaba géneros y décadas obtuvo:
-
-        - silhouette: `0.224`
-        - ARI con décadas: aproximadamente `0.922`
-        - ARI con géneros: aproximadamente `0`
-
-        Por eso se decidió conservar ambas dimensiones
-        por separado.
-
-        ---
-
-        **Límite**
-
-        Los clusters son grupos descriptivos.
-
-        No existe una etiqueta verdadera de
-        "tipo de espectador" y K-means no entrega
-        probabilidades de pertenencia.
-        """)
-
-
-# =========================
-# EXPLORÁ
-# =========================
-
-elif seccion == "Explorá":
-
-    st.markdown(
-        '<div class="titulo-rojo">Tu turno · Explorá</div>',
-        unsafe_allow_html=True
-    )
-
-    st.title(
-        "Explorá los usuarios y descubrí quiénes se parecen"
-    )
-
-    st.write(
-        """
-        Filtrá los usuarios, elegí uno y observá cómo se ubica
-        según sus patrones de género y de época.
-        """
-    )
-
-    # =========================
-    # PREPARAR DATOS
-    # =========================
-
-    datos = modelos.etiquetas.reset_index()
-
-    # Agregamos datos generales del usuario
-    generales = (
-        modelos.entrenamiento
-        .reset_index()[
-            [
-                "userId",
-                "cantidad_valoraciones",
-                "cantidad_valoraciones_total",
-                "rating_promedio_general"
-            ]
-        ]
-    )
-
-    datos = datos.merge(
-        generales,
-        on="userId",
-        how="left"
-    )
-
-    datos["Perfil"] = (
-        datos["nombre_genero"]
-        + " · "
-        + datos["nombre_decada"]
-    )
-
-    # =========================
-    # CONTROLES
-    # =========================
-
-    st.subheader("Filtrá los usuarios")
-
-    c1, c2 = st.columns([1.4, 1])
-
-    perfiles_disponibles = sorted(
-        datos["Perfil"].unique()
-    )
-
-    with c1:
-
-        perfiles_elegidos = st.multiselect(
-            "Perfil",
-            options=perfiles_disponibles,
-            default=perfiles_disponibles
-        )
-
-    with c2:
-
-        minimo_ratings = st.slider(
-            "Mínimo de valoraciones procesadas",
-            min_value=150,
-            max_value=500,
-            value=150,
-            step=25
-        )
-
-    filtrados = datos[
-        datos["Perfil"].isin(perfiles_elegidos)
-        &
-        (datos["cantidad_valoraciones"] >= minimo_ratings)
-    ].copy()
-
-    st.caption(
-        f"Mostrando {len(filtrados):,} usuarios de {len(datos):,}."
-        .replace(",", ".")
-    )
-
-    if filtrados.empty:
-
-        st.warning(
-            "Con estos filtros no quedan usuarios. "
-            "Probá bajar el mínimo o seleccionar más perfiles."
-        )
-
-        st.stop()
-
-
-    # =========================
-    # ELEGIR USUARIO
-    # =========================
-
-    usuario = st.selectbox(
-        "Elegí un usuario para analizar",
-        options=filtrados["userId"].tolist(),
-        format_func=lambda x: f"Usuario {x}"
-    )
-
-
-    # =========================
-    # BUSCAR USUARIOS SIMILARES
-    # =========================
-
-    # Usamos TODAS las componentes PCA retenidas,
-    # no solamente PC1 y PC2.
-
-    entrenamiento = modelos.entrenamiento
-
-    Z_generos = modelos.generos["preparar"].transform(
-        entrenamiento
-    )
-
-    Z_decadas = modelos.decadas["preparar"].transform(
-        entrenamiento
-    )
-
-    ids_modelo = entrenamiento.index.to_numpy()
-
-    posicion = np.where(ids_modelo == usuario)[0][0]
-
-    usuario_g = Z_generos[posicion]
-    usuario_d = Z_decadas[posicion]
-
-    # Distancia dentro de cada espacio.
-    # Dividimos por sqrt(n_componentes) para evitar
-    # que el bloque con más componentes pese más.
-
-    dist_g = (
-        np.linalg.norm(
-            Z_generos - usuario_g,
-            axis=1
-        )
-        / np.sqrt(Z_generos.shape[1])
-    )
-
-    dist_d = (
-        np.linalg.norm(
-            Z_decadas - usuario_d,
-            axis=1
-        )
-        / np.sqrt(Z_decadas.shape[1])
-    )
-
-    # Distancia combinada:
-    # mismo peso para género y época.
-
-    distancia_total = (
-        dist_g + dist_d
-    ) / 2
-
-    similitud = pd.DataFrame({
-        "userId": ids_modelo,
-        "distancia": distancia_total
-    })
-
-    similitud = similitud[
-        similitud["userId"] != usuario
-    ]
-
-    vecinos = (
-        similitud
-        .sort_values("distancia")
-        .head(5)
-    )
-    ids_vecinos = vecinos["userId"].tolist()
-
-
-
-    # =========================
-    # MARCAR PUNTOS
-    # =========================
-
-    filtrados["tipo_punto"] = "Otros usuarios"
-
-    filtrados.loc[
-        filtrados["userId"].isin(ids_vecinos),
-        "tipo_punto"
-    ] = "Usuarios similares"
-
-    filtrados.loc[
-        filtrados["userId"] == usuario,
-        "tipo_punto"
-    ] = "Usuario seleccionado"
-
-
-    # =========================
-    # SCATTER GÉNEROS
-    # =========================
-
-    grafico_generos = (
-        alt.Chart(filtrados)
-        .mark_circle()
-        .encode(
-
-            x=alt.X(
-                "G_PC1:Q",
-                title="Dimensión de género 1",
-                scale=alt.Scale(zero=False)
-            ),
-
-            y=alt.Y(
-                "G_PC2:Q",
-                title="Dimensión de género 2",
-                scale=alt.Scale(zero=False)
-            ),
-
-            color=alt.Color(
-                "tipo_punto:N",
-                title=None,
-
-                scale=alt.Scale(
-                    domain=[
-                        "Otros usuarios",
-                        "Usuarios similares",
-                        "Usuario seleccionado"
-                    ],
-
-                    range=[
-                        "#55555d",
-                        "#f0a202",
-                        "#e50914"
-                    ]
-                )
-            ),
-
-            size=alt.Size(
-                "tipo_punto:N",
-
-                scale=alt.Scale(
-                    domain=[
-                        "Otros usuarios",
-                        "Usuarios similares",
-                        "Usuario seleccionado"
-                    ],
-
-                    range=[
-                        20,
-                        100,
-                        180
-                    ]
-                ),
-
-                legend=None
-            ),
-
-            opacity=alt.condition(
-                alt.datum.tipo_punto == "Otros usuarios",
-                alt.value(0.35),
-                alt.value(1)
-            ),
-
-            tooltip=[
-                alt.Tooltip(
-                    "userId:O",
-                    title="Usuario"
-                ),
-
-                alt.Tooltip(
-                    "nombre_genero:N",
-                    title="Perfil de género"
-                ),
-
-                alt.Tooltip(
-                    "Perfil:N",
-                    title="Perfil combinado"
-                )
-            ]
-        )
-        .properties(
-            height=430,
-            title="Espacio de géneros"
-        )
-        .interactive()
-    )
-
-
-    # =========================
-    # SCATTER ÉPOCAS
-    # =========================
-
-    grafico_decadas = (
-        alt.Chart(filtrados)
-        .mark_circle()
-        .encode(
-
-            x=alt.X(
-                "D_PC1:Q",
-                title="Dimensión temporal 1",
-                scale=alt.Scale(zero=False)
-            ),
-
-            y=alt.Y(
-                "D_PC2:Q",
-                title="Dimensión temporal 2",
-                scale=alt.Scale(zero=False)
-            ),
-
-            color=alt.Color(
-                "tipo_punto:N",
-                title=None,
-
-                scale=alt.Scale(
-                    domain=[
-                        "Otros usuarios",
-                        "Usuarios similares",
-                        "Usuario seleccionado"
-                    ],
-
-                    range=[
-                        "#55555d",
-                        "#f0a202",
-                        "#e50914"
-                    ]
-                )
-            ),
-
-            size=alt.Size(
-                "tipo_punto:N",
-
-                scale=alt.Scale(
-                    domain=[
-                        "Otros usuarios",
-                        "Usuarios similares",
-                        "Usuario seleccionado"
-                    ],
-
-                    range=[
-                        20,
-                        100,
-                        180
-                    ]
-                ),
-
-                legend=None
-            ),
-
-            opacity=alt.condition(
-                alt.datum.tipo_punto == "Otros usuarios",
-                alt.value(0.35),
-                alt.value(1)
-            ),
-
-            tooltip=[
-                alt.Tooltip(
-                    "userId:O",
-                    title="Usuario"
-                ),
-
-                alt.Tooltip(
-                    "nombre_decada:N",
-                    title="Perfil temporal"
-                ),
-
-                alt.Tooltip(
-                    "Perfil:N",
-                    title="Perfil combinado"
-                )
-            ]
-        )
-        .properties(
-            height=430,
-            title="Espacio temporal"
-        )
-        .interactive()
-    )
-
-
-    # =========================
-    # MOSTRAR SCATTERS
-    # =========================
-
-    g1, g2 = st.columns(2)
-
-    with g1:
-
-        st.altair_chart(
-            grafico_generos,
-            width="stretch"
-        )
-
-    with g2:
-
-        st.altair_chart(
-            grafico_decadas,
-            width="stretch"
-        )
-
-
-    st.caption(
-        "🔴 Usuario seleccionado · "
-        "🟠 cinco usuarios más similares · "
-        "⚫ resto de los usuarios"
-    )
-
-
-    # =========================
-    # DETALLE DEL USUARIO
-    # =========================
-
-    st.divider()
-
-    st.subheader(
-        f"Usuario {usuario}"
-    )
-
-    detalle = modelos.entrenamiento.loc[usuario]
-
-    fila_etiqueta = datos[
-        datos["userId"] == usuario
-    ].iloc[0]
-
-    a, b, c = st.columns(3)
-
-    with a:
-
-        st.metric(
-            "Valoraciones procesadas",
-            int(
-                detalle[
-                    "cantidad_valoraciones"
-                ]
-            )
-        )
-
-    with b:
-
-        st.metric(
-            "Valoraciones originales",
-            int(
-                detalle[
-                    "cantidad_valoraciones_total"
-                ]
-            )
-        )
-
-    with c:
-
-        st.metric(
-            "Rating promedio",
-            f'{detalle["rating_promedio_general"]:.2f} / 5'
-        )
-
-
-    st.write(
-        "**Perfil de género:** "
-        + fila_etiqueta["nombre_genero"]
-    )
-
-    st.write(
-        "**Perfil temporal:** "
-        + fila_etiqueta["nombre_decada"]
-    )
-
-
-    # =========================
-    # PREFERENCIAS POR GÉNERO
-    # =========================
-
-    transformador_generos = (
-        modelos
-        .generos["preparar"]["features"]
-    )
-
-    fila_usuario = (
-        modelos
-        .entrenamiento
-        .loc[[usuario]]
-    )
-
-    preferencias = (
-        transformador_generos
-        .transform(fila_usuario)
-        .iloc[0]
-    )
-
-    df_generos = pd.DataFrame({
-        "Género": [
-            x.replace(
-                "pref_",
-                ""
-            )
-            for x in preferencias.index
-        ],
-
-        "Preferencia": preferencias.values
-    })
-
-    df_generos = (
-        df_generos
-        .sort_values(
-            "Preferencia",
-            ascending=False
-        )
-        .head(5)
-    )
-
-
-    grafico_preferencias = (
-        alt.Chart(df_generos)
-        .mark_bar(
-            color="#e50914"
-        )
-        .encode(
-
-            y=alt.Y(
-                "Género:N",
-                sort="-x",
-                title=None
-            ),
-
-            x=alt.X(
-                "Preferencia:Q",
-                title="Preferencia relativa"
-            ),
-
-            tooltip=[
-                "Género:N",
-
-                alt.Tooltip(
-                    "Preferencia:Q",
-                    format=".3f"
-                )
-            ]
-        )
-        .properties(
-            height=300
-        )
-    )
-
-
-    # =========================
-    # DISTRIBUCIÓN POR DÉCADA
-    # =========================
-
-    columnas_decadas = {
-        "prop_antes_1980": "Antes de 1980",
-        "prop_1980s": "1980s",
-        "prop_1990s": "1990s",
-        "prop_2000s": "2000s",
-        "prop_2010s": "2010s",
-        "prop_2020_mas": "2020+"
+def tablas_historia():
+    return {
+        "etapas": h.tabla_etapas(silver, ratings, peliculas),
+        "trampa": h.tabla_trampa(silver),
+        "umbral": h.tabla_umbral(silver),
+        "variables": h.tabla_variables(silver, modelos),
+        "varianza": h.tabla_varianza(modelos),
+        "cargas": h.tabla_cargas(modelos),
     }
 
-    df_decadas = pd.DataFrame({
 
-        "Época": list(
-            columnas_decadas.values()
-        ),
-
-        "Porcentaje": [
-            detalle[columna] * 100
-            for columna
-            in columnas_decadas.keys()
-        ]
-    })
+usuarios = usuarios_tabla()
+T = tablas_historia()
+act = h.resumen_actividad(silver)
 
 
-    grafico_decadas_usuario = (
-        alt.Chart(df_decadas)
-        .mark_bar(
-            color="#f0a202"
-        )
-        .encode(
-
-            x=alt.X(
-                "Época:N",
-                sort=None,
-                title=None,
-                axis=alt.Axis(
-                    labelAngle=-30
-                )
-            ),
-
-            y=alt.Y(
-                "Porcentaje:Q",
-                title="% de películas calificadas"
-            ),
-
-            tooltip=[
-                "Época:N",
-
-                alt.Tooltip(
-                    "Porcentaje:Q",
-                    format=".1f"
-                )
-            ]
-        )
-        .properties(
-            height=300
-        )
-    )
+def decision(texto):
+    """Caja con la decisión que tomamos en esa etapa."""
+    with st.container(border=True):
+        st.markdown(f":red[:material/check_circle: **Decisión**]  \n{texto}")
 
 
-    d1, d2 = st.columns(2)
-
-    with d1:
-
-        st.markdown(
-            "### Afinidades por género"
-        )
-
-        st.altair_chart(
-            grafico_preferencias,
-            width="stretch"
-        )
-
-    with d2:
-
-        st.markdown(
-            "### Películas según época de estreno"
-        )
-
-        st.altair_chart(
-            grafico_decadas_usuario,
-           width="stretch"
-        )
+def seccion(numero, nombre, ancla, afirmacion):
+    st.space("large")
+    st.markdown(f":red[**{numero} · {nombre.upper()}**]")
+    st.header(afirmacion, anchor=ancla)
 
 
-    # =========================
-    # USUARIOS MÁS SIMILARES
-    # =========================
-
-    st.divider()
-
-    st.subheader(
-        "Los 5 usuarios más similares"
-    )
-
-    tabla_vecinos = vecinos.merge(
-        datos[
-            [
-                "userId",
-                "Perfil",
-                "rating_promedio_general",
-                "cantidad_valoraciones"
-            ]
-        ],
-
-        on="userId"
-    )
-
-    tabla_vecinos["Distancia"] = (
-        tabla_vecinos["distancia"]
-        .round(3)
-    )
-
-    tabla_vecinos = tabla_vecinos.rename(
-        columns={
-            "userId": "Usuario",
-            "rating_promedio_general":
-                "Rating promedio",
-            "cantidad_valoraciones":
-                "Valoraciones"
-        }
-    )
-    tabla_vecinos["Rating promedio"] = (
-        tabla_vecinos["Rating promedio"].round(2)
-    )
-
-    st.dataframe(
-        tabla_vecinos[
-            [
-                "Usuario",
-                "Perfil",
-                "Rating promedio",
-                "Valoraciones",
-                "Distancia"
-            ]
-        ],
-
-        hide_index=True,
-        width="stretch"
-    )
-
-    st.caption(
-        "Cuanto menor es la distancia, más parecido es el usuario seleccionado. "
-        "Para calcularla combinamos con el mismo peso sus patrones de género y de época."
-    )
+def grafico(chart, descripcion):
+    st.altair_chart(chart, width="stretch", alt=descripcion)
 
 
-# =========================
-# RECOMENDADOR
-# =========================
+# ---------------------------------------------------------------------------
+# Índice lateral
+# ---------------------------------------------------------------------------
+INDICE = [
+    ("La historia", [("inicio", "El proyecto"), ("datos", "1 · Los datos"),
+                     ("pipeline", "2 · Lo que se pierde"), ("trampa", "3 · La trampa de los pocos ratings"),
+                     ("variables", "4 · Qué entra al modelo"), ("pca", "5 · Menos dimensiones"),
+                     ("grupos", "6 · Cuántos grupos"), ("perfiles", "7 · Los perfiles")]),
+    ("Tu turno", [("explora", "8 · Explorá los usuarios"), ("recomendador", "9 · Un usuario y sus películas")]),
+]
 
-elif seccion == "Recomendador":
+with st.sidebar:
+    st.subheader("Perfiles de cine", icon=":material/movie:")
+    st.caption("Ciencia de Datos · UTN FRM · 2026 · Grupo 5K09-05")
+    for grupo, items in INDICE:
+        st.markdown(f"**{grupo}**")
+        st.markdown("\n".join(f"- [{texto}](#{ancla})" for ancla, texto in items))
+    st.space("small")
+    st.caption("MovieLens 32M · 5.000 usuarios al azar (random_state 42) · TMDB")
 
+
+# ---------------------------------------------------------------------------
+# El proyecto
+# ---------------------------------------------------------------------------
+st.markdown(":red[**PROYECTO INTEGRADOR · CIENCIA DE DATOS**]")
+st.title("¿Se pueden armar perfiles de espectadores con lo que califican, y usarlos para recomendar?",
+         anchor="inicio")
+st.markdown(
+    "Tomamos usuarios de MovieLens, cruzamos sus películas con TMDB y buscamos grupos de gente "
+    "que califica parecido. Esta página cuenta, paso a paso, qué decisiones tomamos y por qué "
+    "los datos nos llevaron a ellas. Al final, el lector explora solo."
+)
+
+ev, ari, sil_conjunto = evaluacion_k()
+with st.container(horizontal=True):
+    st.metric("Usuarios en la muestra", h.fmt(act["usuarios"]), border=True)
+    st.metric("Usuarios modelados", h.fmt(act["modelados"]), border=True,
+              help="Los que tienen al menos 150 ratings.")
+    st.metric("Grupos por género y por época", "2 + 2", border=True)
+    st.metric("Perfiles combinados", "4", border=True)
+
+
+# ---------------------------------------------------------------------------
+# 1 · Los datos
+# ---------------------------------------------------------------------------
+seccion(1, "Los datos", "datos", "La actividad de los usuarios abarca dos órdenes de magnitud")
+izq, der = st.columns([3, 2], gap="large")
+with izq:
     st.markdown(
-        '<div class="titulo-rojo">Tu turno · Recomendador</div>',
-        unsafe_allow_html=True
+        f"El pipeline de Airflow elige **{h.fmt(act['usuarios'])} usuarios al azar** de MovieLens 32M entre "
+        f"los que calificaron al menos {act['minimo']} películas, y trae todos sus ratings. "
+        f"Hay de todo: la mediana es **{h.fmt(act['mediana'])}**, pero el más activo llega a "
+        f"**{h.fmt(act['maximo'])}**. Si usáramos los ratings tal cual, unos pocos usuarios pesarían "
+        "decenas de veces más que el resto."
     )
+with der:
+    decision(f"Recortar a **500 ratings** por usuario, al azar ({h.fmt(act['con_tope'])} usuarios superan "
+             "el tope), y modelar sólo a quienes tienen **150 o más**.")
+grafico(h.grafico_histograma(silver), "Histograma de ratings por usuario en escala logarítmica")
+with st.expander("Ver los números", icon=":material/table_chart:"):
+    st.dataframe(h.tabla_histograma(silver), hide_index=True, alt="Usuarios por intervalo de ratings")
 
-    st.title(
-        "Descubrí películas a partir de usuarios con gustos parecidos"
+
+# ---------------------------------------------------------------------------
+# 2 · Lo que se pierde
+# ---------------------------------------------------------------------------
+etapas = T["etapas"]
+seccion(2, "Lo que se pierde", "pipeline", "Cada etapa del pipeline recorta ratings, no usuarios")
+izq, der = st.columns([3, 2], gap="large")
+with izq:
+    st.markdown(
+        "El DAG tiene dos fuentes de pérdida. El **tope de 500** submuestrea a los usuarios más activos. "
+        "El **cruce con TMDB** sólo conoce el género de las 10.000 películas más vistas de la muestra: los "
+        "ratings de las demás no entran al cálculo por género. Las estadísticas generales de cada usuario "
+        "se calculan antes del cruce, así que nadie desaparece por culpa de TMDB."
     )
+with der:
+    decision("Consultar **10.000 películas** en TMDB (en la Entrega 1 eran 1.000) y calcular las "
+             "estadísticas del usuario **antes** del cruce.")
+grafico(h.grafico_etapas(etapas), "Ratings que quedan después de cada etapa del pipeline")
+with st.expander("Ver los números", icon=":material/table_chart:"):
+    st.dataframe(etapas.drop(columns="orden"), hide_index=True, alt="Ratings y usuarios por etapa",
+                 column_config={"pct_perdido": st.column_config.NumberColumn("% perdido", format="percent")})
 
-    st.write(
-        """
-        Elegí un usuario. Buscamos personas con patrones de valoración
-        similares y recomendamos películas que ellas calificaron bien
-        pero que el usuario seleccionado todavía no calificó.
-        """
+
+# ---------------------------------------------------------------------------
+# 3 · La trampa de los pocos ratings
+# ---------------------------------------------------------------------------
+seccion(3, "La trampa de los pocos ratings", "trampa",
+        "Un género visto una sola vez no dice nada del gusto")
+izq, der = st.columns([3, 2], gap="large")
+with izq:
+    st.markdown(
+        "Para saber si a alguien le gusta un género, comparamos su promedio en ese género con su propio "
+        "promedio general. Pero si vio **una** película del género, ese número es la nota de esa película "
+        "y nada más: por eso en la Entrega 2 el «género mejor valorado» salía casi siempre uno raro, como "
+        "Historia o Bélico. El gráfico muestra cuánto se dispersa la diferencia según cuántas películas "
+        "del género calificó el usuario."
     )
+with der:
+    decision(f"Usar una **media amortiguada**: la diferencia se multiplica por n/(n + {h.SUAVIZADO}). "
+             "Con pocas películas se acerca a cero; con muchas, casi no cambia.")
+grafico(h.grafico_trampa(T["trampa"]), "Dispersión de la afinidad por género según cantidad de películas")
+with st.expander("Ver los números", icon=":material/table_chart:"):
+    st.dataframe(T["trampa"].round(3), hide_index=True, alt="Percentiles de la afinidad por tramo")
 
-    # =========================
-    # USUARIOS DISPONIBLES
-    # =========================
+st.markdown(
+    "La misma lógica vale para el usuario entero: con pocos ratings, todo su perfil es ruido. "
+    "¿Dónde poner el corte?"
+)
+izq, der = st.columns([3, 2], gap="large")
+with izq:
+    grafico(h.grafico_umbral(T["umbral"]), "Usuarios que quedan según el mínimo de ratings")
+with der:
+    st.space("large")
+    decision(f"Exigir **{h.MIN_RATINGS} ratings**: conserva {h.fmt(act['modelados'])} usuarios y deja "
+             "afuera a los historiales más cortos. No decimos que 150 sea óptimo: es un equilibrio entre "
+             "perfiles confiables y usuarios perdidos.")
+    st.caption("En la Entrega 3 se probó la sensibilidad: con 100 la separación de géneros baja y con "
+               "250 o 300 se pierde más de la mitad de la muestra.")
 
-    entrenamiento = modelos.entrenamiento
 
-    usuarios_disponibles = sorted(
-        entrenamiento.index.tolist()
+# ---------------------------------------------------------------------------
+# 4 · Qué entra al modelo
+# ---------------------------------------------------------------------------
+seccion(4, "Qué entra al modelo", "variables", "Entran gustos por género y épocas del historial; nada más")
+st.markdown(
+    "El silver tiene 54 columnas por usuario. Al modelo entran sólo las que describen **qué le gusta** "
+    "(afinidad por género) y **qué mira** (épocas del historial). Todo lo que mide actividad, fechas o "
+    "identidad queda afuera, aunque lo usamos para filtrar y para controlar el resultado."
+)
+st.table(T["variables"].set_index("Variable"))
+
+
+# ---------------------------------------------------------------------------
+# 5 · Menos dimensiones
+# ---------------------------------------------------------------------------
+seccion(5, "Menos dimensiones", "pca", "Dos PCA separadas: una para géneros, otra para épocas")
+izq, der = st.columns([3, 2], gap="large")
+with izq:
+    st.markdown(
+        "Muchos géneros se mueven juntos (quien valora Acción suele valorar Aventura). Antes de agrupar, "
+        "resumimos cada bloque con PCA, por separado, para que los 17 géneros no tapen a las 5 épocas. "
+        "K-means usa **todas** las componentes conservadas; los gráficos muestran sólo las dos primeras."
     )
+with der:
+    decision("Conservar al menos el **80 % de la varianza** en cada bloque.")
+izq, der = st.columns(2, gap="large")
+with izq:
+    grafico(h.grafico_varianza(T["varianza"]), "Varianza acumulada de las dos PCA")
+with der:
+    grafico(h.grafico_cargas(T["cargas"]), "Cargas de la primera componente de géneros")
+with st.expander("Ver los números", icon=":material/table_chart:"):
+    c1, c2 = st.columns(2)
+    c1.dataframe(T["varianza"], hide_index=True, alt="Varianza acumulada por componente",
+                 column_config={"acumulada": st.column_config.NumberColumn(format="percent")})
+    c2.dataframe(T["cargas"].round(3), hide_index=True, alt="Cargas de la primera componente")
 
-    usuario = st.selectbox(
-        "Elegí un usuario",
-        options=usuarios_disponibles,
-        format_func=lambda x: f"Usuario {x}"
+
+# ---------------------------------------------------------------------------
+# 6 · Cuántos grupos
+# ---------------------------------------------------------------------------
+codo, silueta = h.grafico_codo(ev)
+seccion(6, "Cuántos grupos", "grupos", "Dos grupos por bloque, y cada bloque por su lado")
+izq, der = st.columns([3, 2], gap="large")
+with izq:
+    st.markdown(
+        "Probamos K-means de 1 a 6 grupos en cada espacio. El codo muestra cuánto se gana con cada grupo "
+        "más; la silhouette, qué tan separados quedan. Después probamos un único modelo con los dos "
+        "bloques juntos, para ver si convenía no separarlos."
     )
+with der:
+    decision("**k = 2** en géneros y **k = 2** en épocas. Cada usuario queda con dos etiquetas, que "
+             "cruzadas dan cuatro perfiles.")
+c1, c2 = st.columns(2, gap="large")
+with c1:
+    grafico(codo, "Curva del codo para géneros y épocas")
+with c2:
+    grafico(silueta, "Silhouette según la cantidad de grupos")
+grafico(h.grafico_ari(ari), "Coincidencia del modelo conjunto con los modelos separados")
+sil_generos = ev[(ev["bloque"] == "Géneros") & (ev["k"] == 2)]["silhouette"].iloc[0]
+st.caption(f"La separación en géneros es modesta (silhouette {h.dec(sil_generos, 3)}): los grupos son "
+           f"tendencias, no categorías cerradas. El modelo conjunto tiene silhouette {h.dec(sil_conjunto, 3)}.")
+with st.expander("Ver los números", icon=":material/table_chart:"):
+    c1, c2 = st.columns(2)
+    c1.dataframe(ev.round(3), hide_index=True, alt="Inercia y silhouette por k")
+    c2.dataframe(ari.round(4), hide_index=True, alt="ARI del modelo conjunto")
 
 
-    # =========================
-    # REPRESENTACIONES PCA
-    # =========================
+# ---------------------------------------------------------------------------
+# 7 · Los perfiles
+# ---------------------------------------------------------------------------
+cruce, p_chi, v_cramer = h.tabla_cruce(usuarios)
+perfil_g, orden_g = h.tabla_perfil_generos(usuarios)
+perfil_e = h.tabla_perfil_epocas(usuarios)
+rho, medianas = h.pregunta_actividad(usuarios, modelos)
 
-    Z_generos = modelos.generos[
-        "preparar"
-    ].transform(entrenamiento)
+seccion(7, "Los perfiles", "perfiles", "Cuatro perfiles, armados con dos preguntas distintas")
+st.markdown(
+    "Un modelo responde **qué géneros le gustan más que su propio promedio**; el otro, **de qué época es "
+    "lo que mira**. Las dos respuestas no dependen una de la otra, así que cada combinación es un perfil."
+)
+grafico(h.grafico_cruce(cruce, p_chi, v_cramer), "Cruce de los grupos de género y de época")
+c1, c2 = st.columns(2, gap="large")
+with c1:
+    grafico(h.grafico_perfil_generos(perfil_g, orden_g), "Afinidad media por género en cada grupo")
+with c2:
+    grafico(h.grafico_perfil_epocas(perfil_e), "Porcentaje del historial por época en cada grupo")
 
-    Z_decadas = modelos.decadas[
-        "preparar"
-    ].transform(entrenamiento)
-
-    ids_modelo = entrenamiento.index.to_numpy()
-
-    posicion = np.where(
-        ids_modelo == usuario
-    )[0][0]
-
-    usuario_g = Z_generos[posicion]
-    usuario_d = Z_decadas[posicion]
-
-
-    # =========================
-    # DISTANCIAS
-    # =========================
-
-    dist_g = (
-        np.linalg.norm(
-            Z_generos - usuario_g,
-            axis=1
-        )
-        / np.sqrt(Z_generos.shape[1])
+st.subheader("¿Gustos distintos, o gente que califica más y gente que califica menos?")
+izq, der = st.columns([3, 2], gap="large")
+with izq:
+    st.markdown(
+        "Es la trampa que más nos preocupaba: si los grupos sólo separaran a los usuarios muy activos "
+        "de los poco activos, no estaríamos encontrando gustos sino volumen. La cantidad de ratings no "
+        "entra al modelo, así que la usamos para controlarlo."
     )
-
-    dist_d = (
-        np.linalg.norm(
-            Z_decadas - usuario_d,
-            axis=1
+with der:
+    with st.container(border=True):
+        st.markdown(
+            ":red[:material/search: **Lo que encontramos**]  \n"
+            f"La actividad casi no se relaciona con los ejes del modelo (|ρ| ≤ {h.dec(rho.abs().max(), 2)}). "
+            f"Hay un matiz: el grupo de drama y crimen califica algo más "
+            f"(mediana {h.fmt(medianas[h.GENEROS_GRUPOS[1]])} contra "
+            f"{h.fmt(medianas[h.GENEROS_GRUPOS[0]])}), pero las cajas se superponen casi por completo."
         )
-        / np.sqrt(Z_decadas.shape[1])
-    )
-
-    distancia_total = (
-        dist_g + dist_d
-    ) / 2
-
-
-    similitud = pd.DataFrame({
-        "userId": ids_modelo,
-        "distancia": distancia_total
-    })
-
-    similitud = similitud[
-        similitud["userId"] != usuario
-    ]
-
-    # Probamos progresivamente con más usuarios similares
-    # hasta conseguir suficientes películas candidatas.
-
-    cantidades_vecinos = [100, 200, 400, 800]
-
-    vecinos = None
-    recomendaciones = pd.DataFrame()
-
-    for cantidad in cantidades_vecinos:
-
-        vecinos_prueba = (
-            similitud
-            .sort_values("distancia")
-            .head(cantidad)
-            .copy()
-        )
-
-        ids_vecinos_prueba = vecinos_prueba["userId"].tolist()
-
-        # Películas que el usuario ya calificó
-        vistas_usuario = set(
-            ratings.loc[
-                ratings["userId"] == usuario,
-                "movieId"
-            ]
-        )
-
-        # Ratings de los vecinos
-        ratings_vecinos_prueba = ratings[
-            ratings["userId"].isin(ids_vecinos_prueba)
-        ].copy()
-
-        # Quitamos películas ya calificadas por el usuario
-        ratings_vecinos_prueba = ratings_vecinos_prueba[
-            ~ratings_vecinos_prueba["movieId"].isin(vistas_usuario)
-        ]
-
-        # Agregamos distancia
-        ratings_vecinos_prueba = ratings_vecinos_prueba.merge(
-            vecinos_prueba,
-            on="userId",
-            how="left"
-        )
-
-        # Cuanto más cerca está el usuario, más peso tiene
-        ratings_vecinos_prueba["peso"] = (
-            1 / (ratings_vecinos_prueba["distancia"] + 0.001)
-        )
-
-        ratings_vecinos_prueba["rating_ponderado"] = (
-            ratings_vecinos_prueba["rating"]
-            * ratings_vecinos_prueba["peso"]
-        )
-
-        # Resumen por película
-        recomendaciones_prueba = (
-            ratings_vecinos_prueba
-            .groupby("movieId")
-            .agg(
-                rating_promedio=("rating", "mean"),
-                cantidad_vecinos=("userId", "nunique"),
-                suma_ponderada=("rating_ponderado", "sum"),
-                suma_pesos=("peso", "sum")
-            )
-            .reset_index()
-        )
-
-        recomendaciones_prueba["score"] = (
-            recomendaciones_prueba["suma_ponderada"]
-            / recomendaciones_prueba["suma_pesos"]
-        )
-
-        # Evidencia mínima
-        recomendaciones_prueba = recomendaciones_prueba[
-            recomendaciones_prueba["cantidad_vecinos"] >= 2
-        ]
-
-        recomendaciones_prueba = recomendaciones_prueba[
-            recomendaciones_prueba["rating_promedio"] >= 3.8
-        ]
-
-        # Si encontramos al menos 5, nos quedamos con esta cantidad
-        if len(recomendaciones_prueba) >= 5:
-
-            vecinos = vecinos_prueba
-            recomendaciones = recomendaciones_prueba
-            break
-
-
-    # Si ni con 800 conseguimos 5, usamos igualmente
-    # lo mejor que haya encontrado la última búsqueda.
-    if vecinos is None:
-
-        vecinos = vecinos_prueba
-        recomendaciones = recomendaciones_prueba
-
-
-
-
-
-    # =========================
-    # PERFIL DEL USUARIO
-    # =========================
-
-    etiquetas = (
-        modelos
-        .etiquetas
-        .reset_index()
-    )
-
-    perfil_usuario = etiquetas[
-        etiquetas["userId"] == usuario
-    ].iloc[0]
-
-    detalle = entrenamiento.loc[usuario]
-
-
-    st.subheader(
-        f"Usuario {usuario}"
-    )
-
+grafico(h.grafico_actividad(usuarios, rho, medianas), "Ratings por usuario en cada grupo")
+with st.expander("Ver los números", icon=":material/table_chart:"):
     c1, c2, c3 = st.columns(3)
+    c1.dataframe(cruce, hide_index=True, alt="Usuarios por perfil combinado")
+    c2.dataframe(rho.rename("ρ de Spearman").round(3), alt="Correlación de la actividad con cada eje")
+    c3.dataframe(medianas.rename("Mediana de ratings"), alt="Mediana de ratings por grupo")
 
+
+# ---------------------------------------------------------------------------
+# 8 · Explorá (la copa)
+# ---------------------------------------------------------------------------
+seccion(8, "Tu turno", "explora", "Explorá los usuarios")
+st.markdown(
+    "Cada punto es un usuario. **Arrastrá** sobre la nube para marcar un grupo de usuarios y ver su perfil "
+    "a la derecha; **hacé clic en la leyenda** para resaltar un grupo; pasá el mouse por un punto para ver "
+    "quién es. La rueda del mouse no hace zoom: el arrastre está reservado para marcar."
+)
+
+
+@st.fragment
+def copa():
+    c1, c2 = st.columns([1, 2], vertical_alignment="bottom")
     with c1:
-
-        st.metric(
-            "Valoraciones",
-            int(
-                detalle[
-                    "cantidad_valoraciones"
-                ]
-            )
-        )
-
+        espacio = st.segmented_control("Espacio", ["Géneros", "Épocas"], default="Géneros",
+                                       required=True, key="espacio_copa")
     with c2:
-
-        st.metric(
-            "Rating promedio",
-            f'{detalle["rating_promedio_general"]:.2f} / 5'
-        )
-
-    with c3:
-
-        st.metric(
-            "Usuarios similares usados",
-            len(vecinos)
-        )
+        minimo = st.slider("Mínimo de ratings del usuario (historial completo)", 150, 2000, 150, step=50,
+                           key="minimo_copa")
+    chart, n = h.grafico_copa(usuarios, espacio, minimo)
+    st.caption(f"Mostrando {h.fmt(n)} de {h.fmt(len(usuarios))} usuarios.")
+    st.altair_chart(chart, alt="Nube de usuarios con selección y perfil de la selección")
 
 
-    st.write(
-        "**Perfil de género:** "
-        + perfil_usuario["nombre_genero"]
-    )
-
-    st.write(
-        "**Perfil temporal:** "
-        + perfil_usuario["nombre_decada"]
-    )
+copa()
 
 
-
-    # =========================
-    # AGREGAR INFORMACIÓN TMDB
-    # =========================
-
-    recomendaciones = (
-        recomendaciones
-        .merge(
-            peliculas,
-            on="movieId",
-            how="left"
-        )
-    )
+# ---------------------------------------------------------------------------
+# 9 · Un usuario y sus recomendaciones
+# ---------------------------------------------------------------------------
+seccion(9, "Tu turno", "recomendador", "Un usuario, sus vecinos y sus películas")
+st.markdown(
+    "Elegí un usuario. Buscamos a los más parecidos en los dos espacios (con el mismo peso) y le "
+    "recomendamos películas que esos vecinos calificaron bien y que el usuario todavía no calificó."
+)
 
 
-    # =========================
-    # ORDEN FINAL
-    # =========================
+@st.fragment
+def un_usuario():
+    ids, zg, zd = espacios()
+    perfiles = ["Todos"] + sorted(usuarios["perfil"].unique())
+    c1, c2 = st.columns([2, 1], vertical_alignment="bottom")
+    with c1:
+        perfil = st.selectbox("Perfil", perfiles, key="perfil_usuario")
+    candidatos = usuarios if perfil == "Todos" else usuarios[usuarios["perfil"] == perfil]
+    with c2:
+        usuario = st.selectbox("Usuario", candidatos["userId"].tolist(), key="usuario",
+                               format_func=lambda u: f"Usuario {u}")
+    fila = usuarios.set_index("userId").loc[usuario]
+    similitud = h.distancias(ids, zg, zd, usuario)
+    vecinos = similitud.head(5)["userId"].tolist()
 
-    recomendaciones = (
-        recomendaciones
-        .sort_values(
-            [
-                "score",
-                "cantidad_vecinos"
-            ],
-            ascending=[
-                False,
-                False
-            ]
-        )
-        .head(5)
-    )
+    with st.container(horizontal=True, vertical_alignment="center"):
+        st.metric("Ratings en su historial", h.fmt(fila["cantidad_valoraciones_total"]), border=True)
+        st.metric("Rating promedio", f"{h.dec(fila['rating_promedio_general'], 2)} / 5", border=True)
+        with st.container(border=True):
+            st.caption("Su perfil")
+            st.badge(fila["nombre_genero"], icon=":material/theater_comedy:", color="orange")
+            st.badge(fila["nombre_decada"], icon=":material/calendar_month:", color="blue")
 
+    c1, c2 = st.columns(2, gap="large")
+    with c1:
+        grafico(h.grafico_usuario_en_espacio(usuarios, usuario, vecinos, "Géneros"),
+                "Posición del usuario en el espacio de géneros")
+    with c2:
+        grafico(h.grafico_usuario_en_espacio(usuarios, usuario, vecinos, "Épocas"),
+                "Posición del usuario en el espacio de épocas")
+    c1, c2 = st.columns(2, gap="large")
+    with c1:
+        grafico(h.grafico_afinidades_usuario(fila), "Afinidades por género del usuario")
+    with c2:
+        grafico(h.grafico_epocas_usuario(fila), "Historial del usuario por época")
 
-    # =========================
-    # MOSTRAR VECINOS
-    # =========================
-
-    st.divider()
-
-    st.subheader(
-        "¿En quiénes se basa la recomendación?"
-    )
-
-    tabla_vecinos = (
-        vecinos
-        .head(5)
-        .copy()
-    )
-
-    tabla_vecinos[
-        "distancia"
-    ] = (
-        tabla_vecinos[
-            "distancia"
-        ].round(3)
-    )
-
-    tabla_vecinos = tabla_vecinos.rename(
-        columns={
-            "userId": "Usuario",
-            "distancia": "Distancia"
-        }
-    )
-    
-
-    st.dataframe(
-        tabla_vecinos,
-        hide_index=True,
-        width="stretch"
-    )
-
-    st.caption(
-        "Una distancia menor indica un patrón "
-        "de valoración más parecido."
-    )
-
-
-    # =========================
-    # MOSTRAR RECOMENDACIONES
-    # =========================
-
-    st.divider()
-
-    st.subheader(
-        "Películas recomendadas"
-    )
-
-    if recomendaciones.empty:
-
-        st.warning(
-            "No encontramos suficientes películas "
-            "con evidencia para este usuario."
-        )
-
+    rec, cantidad = h.recomendar(similitud, ratings, peliculas, usuario)
+    st.subheader("Películas para recomendarle", icon=":material/theaters:")
+    st.caption(f"Basadas en los {cantidad} usuarios más parecidos. Cada película tiene que estar calificada "
+               "por al menos 2 de ellos, con promedio de 3,8 o más; los más parecidos pesan más.")
+    if rec.empty:
+        st.warning("No encontramos películas con evidencia suficiente para este usuario.")
     else:
+        for fila_cartas in [rec.iloc[:3], rec.iloc[3:6]]:
+            cols = st.columns(3)
+            for col, (_, p) in zip(cols, fila_cartas.iterrows()):
+                with col.container(border=True, height="stretch"):
+                    anio = str(p["fecha_estreno"])[:4] if pd.notna(p["fecha_estreno"]) else "s/f"
+                    st.markdown(f"**{p['titulo']}** · {anio}")
+                    generos = str(p["genres"]).split("|") if pd.notna(p["genres"]) else []
+                    st.caption(" · ".join(h.GENERO_ES.get(g, g) for g in generos))
+                    st.markdown(f":material/star: {h.dec(p['rating_promedio'], 2)} entre "
+                                f"{int(p['cantidad_vecinos'])} usuarios parecidos")
 
-        for i, (_, fila) in enumerate(
-            recomendaciones.iterrows(),
-            start=1
-        ):
-
-            titulo = (
-                fila["titulo"]
-                if pd.notna(fila["titulo"])
-                else f"Película {fila['movieId']}"
-            )
-
-            st.markdown(
-                f"### {i}. {titulo}"
-            )
-
-            if pd.notna(fila["fecha_estreno"]):
-                st.caption(
-                    f"📅 Estreno: {fila['fecha_estreno']}"
-                )
-
-            if pd.notna(fila["genres"]):
-                st.caption(
-                    f"🎬 {fila['genres']}"
-                )
-
-            c1, c2 = st.columns(2)
-
-            with c1:
-                st.metric(
-                    "Rating entre similares",
-                    f"{fila['rating_promedio']:.2f} / 5"
-                )
-
-            with c2:
-                st.metric(
-                    "Usuarios similares",
-                    int(fila["cantidad_vecinos"])
-                )
-
-            st.write(
-                "Te la recomendamos porque usuarios "
-                "con un patrón parecido al tuyo "
-                "la calificaron bien y vos todavía "
-                "no la calificaste."
-            )
-
-            st.divider()
+    with st.expander("Los 5 usuarios más parecidos", icon=":material/group:"):
+        tabla = similitud.head(5).merge(usuarios[["userId", "perfil", "cantidad_valoraciones_total"]], on="userId")
+        st.dataframe(tabla, hide_index=True, alt="Usuarios más parecidos",
+                     column_config={"userId": "Usuario", "perfil": "Perfil",
+                                    "cantidad_valoraciones_total": "Ratings",
+                                    "distancia": st.column_config.NumberColumn("Distancia", format="%.3f")})
 
 
-    # =========================
-    # EXPLICACIÓN
-    # =========================
+un_usuario()
 
-    with st.expander(
-        "Cómo funciona este recomendador"
-    ):
-
-        st.markdown("""
-        **1. Representación del usuario**
-
-        Se utilizan las mismas representaciones PCA de
-        géneros y épocas usadas en el modelo.
-
-        **2. Usuarios similares**
-
-        Se calcula la distancia del usuario elegido
-        respecto de los demás.
-
-        Géneros y épocas tienen el mismo peso.
-
-        Para obtener recomendaciones, la aplicación comienza
-        con los **100 usuarios más cercanos**.
-
-        Si no encuentra al menos 5 películas con evidencia suficiente,
-        amplía automáticamente la búsqueda a **200, 400 y hasta 800 usuarios similares**.
-
-        **3. Películas candidatas**
-
-        Se buscan las películas calificadas por esos usuarios.
-
-        Se eliminan todas las películas que el usuario
-        seleccionado ya calificó.
-
-        **4. Evidencia mínima**
-
-        Una película debe haber sido calificada por
-        al menos **2 usuarios similares**.
-
-        Además, el promedio entre esos usuarios debe ser
-        de al menos **3,8 estrellas**.
-
-        **5. Ranking**
-
-        Los usuarios más cercanos tienen mayor peso.
-
-        El score final es un promedio ponderado de sus ratings.
-
-        Por lo tanto, las recomendaciones salen de
-        valoraciones reales de MovieLens y no de una lista editorial.
-        """)
+st.space("large")
+st.caption(
+    f"Fuente: MovieLens 32M · {h.fmt(act['usuarios'])} usuarios al azar con ≥ 100 ratings (random_state 42) · "
+    f"tope de 500 ratings · TMDB para géneros y fechas · modelo con los {h.fmt(act['modelados'])} usuarios "
+    "de 150 ratings o más. Los grupos son descriptivos: no hay una etiqueta verdadera de «tipo de espectador»."
+)

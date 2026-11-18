@@ -50,16 +50,26 @@ Se aplicó:
 
 Los modelos de géneros y épocas se conservaron por separado porque el modelo conjunto reproducía principalmente la estructura temporal.
 
-## Exploración interactiva
+## La aplicación
 
-La aplicación permite:
+Es **una sola página** que se recorre de arriba hacia abajo, con un índice en la barra lateral que salta a cada sección. Sigue la estructura de **copa de martini** de la Unidad 4: primero la historia guiada (el tallo) y al final la parte para explorar (la copa).
 
-- filtrar usuarios por perfil;
-- seleccionar un usuario;
-- visualizar su posición en los espacios de género y época;
-- observar sus afinidades;
-- consultar su distribución de películas según época de estreno;
-- encontrar los usuarios más similares.
+**La historia**
+
+1. **Los datos**: ratings por usuario en escala logarítmica, con el corte de 150 y el tope de 500.
+2. **Lo que se pierde**: cuántos ratings quedan después de cada etapa del pipeline.
+3. **La trampa de los pocos ratings**: por qué usamos una media amortiguada y un mínimo de 150 ratings.
+4. **Qué entra al modelo**: qué columnas se usan y por qué.
+5. **Menos dimensiones**: varianza acumulada y cargas de las dos PCA.
+6. **Cuántos grupos**: codo, silhouette y comparación con un modelo conjunto.
+7. **Los perfiles**: cruce de los grupos, perfil de cada uno y control de que no dependan de la actividad.
+
+**Tu turno**
+
+8. **Explorá los usuarios**: nube de usuarios con selección por leyenda y un recuadro que filtra el perfil de los marcados.
+9. **Un usuario y sus películas**: vecinos más parecidos y recomendaciones.
+
+Todos los números de los títulos y textos se calculan a partir de los archivos del pipeline (`historia.py`); cada gráfico tiene debajo un desplegable con la tabla de números que muestra.
 
 ## Recomendador
 
@@ -90,13 +100,13 @@ La búsqueda comienza con los **100 usuarios más similares** y puede ampliarse 
 ## Estructura principal
 
 ```text
-entrega4_final/
-│
-├── app.py
-├── modelado.py
-├── usuarios_generos.csv
-├── ratings_selected_users.csv
-├── tmdb_movies_prepared.csv
+├── app.py                       # la página: textos, orden de las secciones e interacción
+├── historia.py                  # cálculos y gráficos (Altair) de cada sección
+├── modelado.py                  # pipeline de la Entrega 3 (StandardScaler → PCA → K-means)
+├── usuarios_generos.csv         # silver del DAG: una fila por usuario (5.000)
+├── ratings_selected_users.csv   # ratings del DAG (con el tope de 500) de los 3.503 usuarios modelados
+├── tmdb_movies_prepared.csv     # películas consultadas en TMDB por el DAG
+├── .streamlit/config.toml       # tema visual
 ├── requirements.txt
 └── README.md
 ```
@@ -120,22 +130,6 @@ Luego acceder desde el navegador a la dirección local indicada por Streamlit, n
 ```text
 http://localhost:8501
 ```
-
-## Navegación de la aplicación
-
-La aplicación sigue una estructura narrativa dividida en dos partes.
-
-### La historia
-
-- El proyecto
-- Los datos
-- Lo que encontramos
-- El modelo
-
-### Tu turno
-
-- Explorá
-- Recomendador
 
 ## Grupo
 
