@@ -1,15 +1,15 @@
 [theme]
-base = "dark"
+base = "light"
 primaryColor = "#e50914"
-backgroundColor = "#0f0f12"
-secondaryBackgroundColor = "#1a1a1f"
-textColor = "#ececf1"
-borderColor = "#2a2a31"
-linkColor = "#ff5a62"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f4f4f6"
+textColor = "#1f1f24"
+borderColor = "#e2e2e8"
+linkColor = "#c8102e"
 font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
 baseRadius = "0.6rem"
-chartCategoricalColors = ["#f2b134", "#d64550", "#4cc9f0", "#9b8cff", "#6b6b75"]
+chartCategoricalColors = ["#e09a0b", "#c2334a", "#1a9bc9", "#6d5ce0", "#6b6b75"]
 
 [theme.sidebar]
-backgroundColor = "#141418"
-secondaryBackgroundColor = "#1d1d22"
+backgroundColor = "#f7f7f9"
+secondaryBackgroundColor = "#ececf0"

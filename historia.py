@@ -21,13 +21,18 @@ from modelado import (COLUMNAS_DECADAS, MIN_RATINGS, SEMILLA, SUAVIZADO,
 # Colores: un solo canal por dimensión para toda la app
 # ---------------------------------------------------------------------------
 GRIS = "#6b6b75"
-GRIS_CLARO = "#a3a3ad"
+GRIS_CLARO = "#8a8a94"
+TEXTO = "#1f1f24"
+FONDO = "#ffffff"
+APAGADO = "#dcdce2"
+AMBAR = "#e09a0b"
+CIAN = "#1a9bc9"
 ROJO = "#e50914"
 
 GENEROS_GRUPOS = ["Animación, familia y aventura", "Drama, crimen e histórico"]
 DECADAS_GRUPOS = ["Cine de 2000–2010", "Cine noventero y clásico"]
-COLOR_GENERO = alt.Scale(domain=GENEROS_GRUPOS, range=["#f2b134", "#d64550"])
-COLOR_DECADA = alt.Scale(domain=DECADAS_GRUPOS, range=["#4cc9f0", "#9b8cff"])
+COLOR_GENERO = alt.Scale(domain=GENEROS_GRUPOS, range=[AMBAR, "#c2334a"])
+COLOR_DECADA = alt.Scale(domain=DECADAS_GRUPOS, range=[CIAN, "#6d5ce0"])
 
 NOMBRE_EPOCA = {
     "prop_antes_1980": "Antes de 1980", "prop_1980s": "1980s",
@@ -132,7 +137,7 @@ def grafico_histograma(silver):
     x = alt.X("desde:Q", title="Ratings por usuario (historial completo, escala log)",
               scale=alt.Scale(type="log", domain=[100, 10000]),
               axis=alt.Axis(values=[100, 150, 200, 300, 500, 1000, 2000, 5000, 10000], format="~s"))
-    barras = alt.Chart(tabla).mark_bar(stroke="#0f0f12", strokeWidth=0.5).encode(
+    barras = alt.Chart(tabla).mark_bar(stroke=FONDO, strokeWidth=0.5).encode(
         x=x, x2="hasta:Q",
         y=alt.Y("usuarios:Q", title="Usuarios"), y2=alt.datum(0),   # la barra va de 0 a su altura
         color=alt.Color("tramo:N", title=None, scale=alt.Scale(
@@ -186,9 +191,9 @@ def grafico_etapas(tabla):
                 scale=alt.Scale(domain=[0, 1_800_000]), axis=alt.Axis(format="~s")),
         y=y, tooltip=["etapa:N", alt.Tooltip("ratings:Q", format=","), "usuarios:Q"])
     ultima = barras.transform_filter(alt.datum.orden == 4).mark_bar(color=ROJO, cornerRadiusEnd=3)
-    texto = alt.Chart(tabla).mark_text(align="left", dx=6, color="#ececf1", fontSize=11).encode(
+    texto = alt.Chart(tabla).mark_text(align="left", dx=6, color=TEXTO, fontSize=11).encode(
         x="ratings:Q", y=y, text="etiqueta:N")
-    nota = alt.Chart(tabla).mark_text(align="right", dx=-6, color="#0f0f12", fontWeight="bold",
+    nota = alt.Chart(tabla).mark_text(align="right", dx=-6, color="#ffffff", fontWeight="bold",
                                       fontSize=11).encode(x="ratings:Q", y=y, text="nota:N")
     return (barras + ultima + texto + nota).properties(height=340, title=titulo(
         f"El tope de 500 recorta el {dec(tope)} % de los ratings; TMDB, apenas el {dec(tmdb)} %",
@@ -235,7 +240,7 @@ def grafico_trampa(tabla):
     base = alt.Chart()   # sin datos: la tabla se pasa una sola vez, a la capa que se facetea
     banda = base.mark_area(opacity=0.25, color=ROJO).encode(x=x, y=y, y2="p95:Q")
     caja = base.mark_area(opacity=0.45, color=ROJO).encode(x=x, y="p25:Q", y2="p75:Q")
-    linea = base.mark_line(color="#ececf1", point=True).encode(
+    linea = base.mark_line(color=TEXTO, point=True).encode(
         x=x, y="mediana:Q",
         tooltip=["tramo:O", alt.Tooltip("pares:Q", title="usuario × género", format=","),
                  alt.Tooltip("p05:Q", format=".2f"), alt.Tooltip("mediana:Q", format=".2f"),
@@ -245,7 +250,7 @@ def grafico_trampa(tabla):
     capas = alt.layer(banda, caja, linea, cero, data=tabla).properties(width=440, height=260)
     return capas.facet(column=alt.Column("version:N", title=None, sort=[
         "Promedio crudo", f"Amortiguado (m = {SUAVIZADO})"],
-        header=alt.Header(labelFontSize=13, labelColor="#ececf1", labelAnchor="start"))
+        header=alt.Header(labelFontSize=13, labelColor=TEXTO, labelAnchor="start"))
     ).resolve_scale(y="shared").properties(title=titulo(
         f"Con una sola película, el «gusto» por un género varía {dec(ancho_1 / ancho_50, 0)} veces más "
         "que con cincuenta",
@@ -268,7 +273,7 @@ def grafico_umbral(tabla):
     barras = alt.Chart(tabla).mark_bar(cornerRadiusEnd=3).encode(
         x=x, y=alt.Y("usuarios:Q", title="Usuarios que quedan", scale=alt.Scale(domain=[0, 5600])),
         color=alt.condition(alt.datum.minimo == MIN_RATINGS, alt.value(ROJO), alt.value(GRIS)))
-    texto = alt.Chart(tabla).mark_text(dy=-8, fontSize=11, color="#ececf1").encode(
+    texto = alt.Chart(tabla).mark_text(dy=-8, fontSize=11, color=TEXTO).encode(
         x=x, y="usuarios:Q", text="t:N")
     return (barras + texto).properties(height=370, title=titulo(
         f"Con {MIN_RATINGS} ratings como mínimo quedan {fmt(fila['usuarios'])} usuarios: "
@@ -329,7 +334,7 @@ def tabla_varianza(modelos):
 def grafico_varianza(tabla):
     el = tabla[tabla["elegida"]].set_index("bloque")
     color = alt.Color("bloque:N", title=None, scale=alt.Scale(
-        domain=["Géneros", "Épocas"], range=["#f2b134", "#4cc9f0"]), legend=None)
+        domain=["Géneros", "Épocas"], range=[AMBAR, CIAN]), legend=None)
     x = alt.X("componente:Q", title="Componentes conservadas", scale=alt.Scale(domain=[1, 17]),
               axis=alt.Axis(tickMinStep=1))
     y = alt.Y("acumulada:Q", title="Varianza explicada acumulada",
@@ -398,7 +403,7 @@ def evaluar_k(modelos):
 
 def grafico_codo(evaluacion):
     color = alt.Color("bloque:N", title=None, scale=alt.Scale(
-        domain=["Géneros", "Épocas"], range=["#f2b134", "#4cc9f0"]), legend=alt.Legend(orient="top-right"))
+        domain=["Géneros", "Épocas"], range=[AMBAR, CIAN]), legend=alt.Legend(orient="top-right"))
     x = alt.X("k:O", title="Cantidad de grupos (k)", axis=alt.Axis(labelAngle=0))
     codo = alt.Chart(evaluacion).mark_line(point=True).encode(
         x=x, y=alt.Y("inercia:Q", title="Inercia (k = 1 vale 100 %)", axis=alt.Axis(format="%"),
@@ -427,8 +432,8 @@ def grafico_ari(ari):
     barras = alt.Chart(t).mark_bar(cornerRadiusEnd=3).encode(
         x=alt.X("ari:Q", title="Coincidencia entre agrupamientos (ARI, 1 = idénticos)",
                 scale=alt.Scale(domain=[0, 1])), y=y,
-        color=alt.condition(alt.datum.comparacion == "Conjunto vs. épocas", alt.value("#4cc9f0"), alt.value("#f2b134")))
-    texto = alt.Chart(t).mark_text(align="left", dx=6, fontWeight="bold", color="#ececf1").encode(
+        color=alt.condition(alt.datum.comparacion == "Conjunto vs. épocas", alt.value(CIAN), alt.value(AMBAR)))
+    texto = alt.Chart(t).mark_text(align="left", dx=6, fontWeight="bold", color=TEXTO).encode(
         x=alt.X("ari:Q", scale=alt.Scale(domain=[0, 1])), y=y, text="texto:N")
     return (barras + texto).properties(height=240, title=titulo(
         "Un solo modelo con géneros y épocas juntos copia a las épocas y borra los géneros",
@@ -454,8 +459,8 @@ def grafico_cruce(largo, p, v):
                 axis=alt.Axis(labelAngle=0, orient="top")),
         y=alt.Y("nombre_genero:N", title="Grupo por género", sort=GENEROS_GRUPOS,
                 axis=alt.Axis(labelLimit=220)))
-    celdas = base.mark_rect(cornerRadius=6, stroke="#0f0f12", strokeWidth=3).encode(
-        color=alt.Color("usuarios:Q", legend=None, scale=alt.Scale(range=["#3a1518", "#b3121b"])))
+    celdas = base.mark_rect(cornerRadius=6, stroke=FONDO, strokeWidth=3).encode(
+        color=alt.Color("usuarios:Q", legend=None, scale=alt.Scale(range=["#e8656c", "#b3121b"])))
     texto = base.mark_text(fontSize=15, fontWeight="bold", color="#ffffff").encode(text="t:N")
     return (celdas + texto).properties(height=330, title=titulo(
         "Los cuatro perfiles: los dos grupos de género se reparten mitad y mitad entre las épocas",
@@ -565,7 +570,7 @@ def grafico_copa(usuarios, espacio, minimo):
         x=alt.X("x:Q", title=f"Eje 1 de {espacio.lower()}", scale=alt.Scale(zero=False)),
         y=alt.Y("y:Q", title=f"Eje 2 de {espacio.lower()}", scale=alt.Scale(zero=False)),
         color=alt.condition(brush, alt.Color("grupo:N", scale=escala, title="Grupo (clic para resaltar)",
-                                             legend=alt.Legend(orient="top", labelLimit=320)), alt.value("#3a3a42")),
+                                             legend=alt.Legend(orient="top", labelLimit=320)), alt.value(APAGADO)),
         opacity=alt.condition(elegido, alt.value(0.75), alt.value(0.06)),
         tooltip=[alt.Tooltip("userId:N", title="Usuario"), alt.Tooltip("perfil:N", title="Perfil"),
                  alt.Tooltip("cantidad_valoraciones_total:Q", title="Ratings", format=","),
@@ -582,7 +587,7 @@ def grafico_copa(usuarios, espacio, minimo):
         tooltip=[alt.Tooltip("nombre:N", title="Variable"),
                  alt.Tooltip("mean(valor):Q", title="Seleccionados", format=fmt_barras),
                  alt.Tooltip("count():Q", title="Usuarios")])
-    todos = largo.mark_tick(color="#ececf1", thickness=2, size=16).encode(
+    todos = largo.mark_tick(color=TEXTO, thickness=2, size=16).encode(
         y=alt.Y("nombre:N", sort=orden), x="mean(valor):Q")
     panel = (barras + todos).properties(width=300, height=440, title=alt.Title(
         "Perfil de la selección", subtitle="Barra: usuarios marcados · raya blanca: todos",
@@ -630,7 +635,7 @@ def grafico_usuario_en_espacio(usuarios, usuario, vecinos, espacio):
     d.loc[d["userId"] == usuario, "tipo"] = "Usuario elegido"
     d["orden"] = d["tipo"].map({"Resto": 0, "Los 5 más parecidos": 1, "Usuario elegido": 2})
     escala = alt.Scale(domain=["Resto", "Los 5 más parecidos", "Usuario elegido"],
-                       range=["#3a3a42", "#f2b134", ROJO])
+                       range=[APAGADO, AMBAR, ROJO])
     return alt.Chart(d).mark_circle().encode(
         x=alt.X("x:Q", title=f"Eje 1 de {espacio.lower()}", scale=alt.Scale(zero=False)),
         y=alt.Y("y:Q", title=f"Eje 2 de {espacio.lower()}", scale=alt.Scale(zero=False)),
@@ -655,7 +660,7 @@ def grafico_afinidades_usuario(fila):
 def grafico_epocas_usuario(fila):
     cols = [c for c in fila.index if c.startswith("e_")]
     t = pd.DataFrame({"epoca": [c[2:] for c in cols], "pct": fila[cols].astype(float).to_numpy()})
-    return alt.Chart(t).mark_bar(color="#4cc9f0", cornerRadiusEnd=2).encode(
+    return alt.Chart(t).mark_bar(color=CIAN, cornerRadiusEnd=2).encode(
         x=alt.X("epoca:N", sort=ORDEN_EPOCAS, title=None, axis=alt.Axis(labelAngle=0)),
         y=alt.Y("pct:Q", title="% de su historial"),
         tooltip=["epoca:N", alt.Tooltip("pct:Q", format=".1f")],
