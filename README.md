@@ -84,7 +84,7 @@ Para un usuario seleccionado:
 4. Se recuperan las películas calificadas por esos usuarios.
 5. Se eliminan las películas que el usuario seleccionado ya calificó.
 6. Cada uno de los **100 usuarios más similares** vota por las películas que calificó con 4 o más, y su voto pesa más cuanto más cerca está.
-7. Se recomiendan las películas con más votos.
+7. Se recomiendan las **9** películas con más votos: en la evaluación, cada una de las primeras 9 acierta al menos 1 de cada 5 veces y la precisión baja de a poco, sin un salto donde cortar.
 
 La regla se eligió midiendo: en `evaluacion_recomendador.ipynb` se esconde el 20 % de los ratings de cada usuario y se cuenta cuántas de las 10 recomendaciones son películas escondidas que le gustaron. Con votos la precisión@10 es 0,266, contra 0,201 de recomendar las más populares. La regla anterior (promedio de los vecinos, con sólo 2 vecinos por película) daba 0,004, casi como recomendar al azar.
 

@@ -528,33 +528,124 @@ def grafico_varianza(tabla):
         "La línea punteada es el 80 % que pedimos conservar."))
 
 
-def tabla_cargas(modelos):
-    pca = modelos.generos["preparar"]["pca"]
-    nombres = [GENERO_ES[g] for g in modelos.generos["preparar"]["features"].generos_]
-    t = pd.DataFrame({"genero": nombres, "carga": pca.components_[0]})
-    signo_drama = np.sign(t.set_index("genero").loc["Drama", "carga"])
-    t["lado"] = np.where(np.sign(t["carga"]) == signo_drama, GENEROS_GRUPOS[1], GENEROS_GRUPOS[0])
-    return t.sort_values("carga")
+# ---------------------------------------------------------------------------
+# Las variables del modelo y los ejes de las PCA, con nombre
+# ---------------------------------------------------------------------------
+EPOCA_CORTA = {"prop_antes_1980": "antes de 1980", "prop_1980s": "los 80", "prop_1990s": "los 90",
+               "prop_2000s": "los 2000", "prop_2010s": "los 2010", "prop_2020_mas": "2020 en adelante"}
+EJES = {}          # (bloque, número de eje) -> (polo negativo, polo positivo); lo llena fijar_ejes
+EJES_CORTOS = {}   # lo mismo con hasta dos nombres por lado, para los títulos de los ejes
 
 
-def grafico_cargas(tabla):
-    return alt.Chart(tabla).mark_bar(cornerRadiusEnd=2).encode(
-        x=alt.X("carga:Q", title="Carga en la primera componente de géneros"),
-        y=alt.Y("genero:N", sort=list(tabla["genero"]), title=None, axis=alt.Axis(labelOverlap=False)),
-        color=alt.Color("lado:N", scale=COLOR_GENERO, title=None,
-                        legend=alt.Legend(orient="bottom", labelLimit=320)),
-        tooltip=["genero:N", alt.Tooltip("carga:Q", format=".2f")],
-    ).properties(height=510, title=titulo(
-        ["El primer eje de géneros opone drama y crimen", "a animación y familia"],
-        "El signo es arbitrario: importa qué géneros quedan de cada lado."))
+def tabla_cargas_todas(modelos):
+    """Cuánto pesa cada variable en cada eje de las dos PCA (una fila por variable y eje)."""
+    filas = []
+    for bloque, modelo in [("Géneros", modelos.generos), ("Épocas", modelos.decadas)]:
+        prep = modelo["preparar"]
+        if bloque == "Géneros":
+            nombres = [GENERO_ES.get(g, g) for g in prep["features"].generos_]
+        else:
+            nombres = [EPOCA_CORTA[c] for c in prep["features"].columnas_]
+        pca = prep["pca"]
+        for i, (componente, var) in enumerate(zip(pca.components_, pca.explained_variance_ratio_), start=1):
+            for nombre, carga in zip(nombres, componente):
+                filas.append({"bloque": bloque, "eje": i, "variable": nombre, "carga": carga, "varianza": var})
+    return pd.DataFrame(filas)
+
+
+def _polo(serie, cronologico=False, maximo=3):
+    """Los nombres que más empujan hacia un lado (los que pesan al menos la mitad del más fuerte)."""
+    fuertes = serie[serie.abs() >= serie.abs().max() * 0.5].abs().sort_values(ascending=False).head(maximo).index
+    if cronologico:   # las épocas se leen mejor en orden
+        orden = list(EPOCA_CORTA.values())
+        fuertes = sorted(fuertes, key=orden.index)
+    nombres = [n.lower() for n in fuertes]
+    return " y ".join([", ".join(nombres[:-1]), nombres[-1]]) if len(nombres) > 1 else nombres[0]
+
+
+def fijar_ejes(cargas):
+    """Le pone nombre a cada eje según qué variables lo empujan para cada lado."""
+    EJES.clear()
+    EJES_CORTOS.clear()
+    for (bloque, eje), grupo in cargas.groupby(["bloque", "eje"]):
+        c = grupo.set_index("variable")["carga"]
+        prefijo = "más " if bloque == "Géneros" else "cine de "
+        lados = (c[c < 0], c[c > 0])
+        EJES[(bloque, eje)] = tuple(prefijo + _polo(l, bloque == "Épocas") for l in lados)
+        EJES_CORTOS[(bloque, eje)] = tuple(prefijo + _polo(l, bloque == "Épocas", maximo=2) for l in lados)
+    return EJES
+
+
+def titulo_eje(bloque, eje):
+    """Título de eje en dos renglones: el número y hacia dónde va cada lado."""
+    if (bloque, eje) not in EJES_CORTOS:
+        return f"Eje {eje} de {bloque.lower()}"
+    negativo, positivo = EJES_CORTOS[(bloque, eje)]
+    return [f"Eje {eje} de {bloque.lower()}", f"← {negativo}  ·  {positivo} →"]
+
+
+def tabla_ejes(cargas):
+    """Un renglón por eje: cuánta varianza explica y qué opone."""
+    filas = []
+    for (bloque, eje), grupo in cargas.groupby(["bloque", "eje"], sort=False):
+        negativo, positivo = EJES.get((bloque, eje), ("", ""))
+        filas.append({"Bloque": bloque, "Eje": eje, "Varianza que explica": grupo["varianza"].iloc[0],
+                      "Un extremo (−)": negativo, "El otro extremo (+)": positivo})
+    return pd.DataFrame(filas)
+
+
+def grafico_cargas_eje(cargas, bloque):
+    """Elegí un eje y mirá qué variables lo empujan hacia cada lado."""
+    datos = cargas[cargas["bloque"] == bloque].copy()
+    datos["lado"] = np.where(datos["carga"] < 0, "Empuja hacia la izquierda (−)", "Empuja hacia la derecha (+)")
+    n = int(datos["eje"].max())
+    nombre = "eje_" + ("generos" if bloque == "Géneros" else "epocas")
+    eje = alt.param(name=nombre, value=1, bind=alt.binding_radio(options=list(range(1, n + 1)),
+                                                                 name=f"Eje de {bloque.lower()}: "))
+    # en Streamlit la altura incluye título, leyenda y eje: se suma lo que ocupan
+    alto = 28 * datos["variable"].nunique() + 190
+    return alt.Chart(datos).transform_filter(f"datum.eje == {nombre}").mark_bar(size=14, cornerRadiusEnd=3).encode(
+        x=alt.X("carga:Q", title="Carga: cuánto pesa la variable en el eje", scale=alt.Scale(domain=[-0.9, 0.9])),
+        y=alt.Y("variable:N", title=None, sort=alt.EncodingSortField("carga", order="ascending"),
+                axis=alt.Axis(labelLimit=0, minExtent=105, labelOverlap=False)),
+        color=alt.Color("lado:N", title=None, legend=alt.Legend(orient="top", direction="vertical", labelLimit=0),
+                        scale=alt.Scale(domain=["Empuja hacia la izquierda (−)", "Empuja hacia la derecha (+)"],
+                                        range=[QUEMADO, EPOCA_RECIENTE])),
+        tooltip=[alt.Tooltip("variable:N", title="Variable"), alt.Tooltip("eje:Q", title="Eje"),
+                 alt.Tooltip("carga:Q", title="Carga", format="+.2f"),
+                 alt.Tooltip("varianza:Q", title="Varianza del eje", format=".0%")],
+    ).add_params(eje).properties(height=alto, title=titulo(
+        f"Qué variables arman cada eje de {bloque.lower()}",
+        "Elegí el eje con los botones de abajo."))
+
+
+def tabla_fila_usuario(modelos, usuario):
+    """Las 22 variables de un usuario, con las cuentas a la vista."""
+    D = modelos.entrenamiento
+    fila = D.loc[usuario]
+    general = fila["rating_promedio_general"]
+    generos = []
+    for g in modelos.generos["preparar"]["features"].generos_:
+        n = 0 if pd.isna(fila[f"n_{g}"]) else int(fila[f"n_{g}"])
+        media = general if pd.isna(fila[g]) else float(fila[g])
+        factor = n / (n + SUAVIZADO)
+        generos.append({"Género": GENERO_ES.get(g, g), "Películas que calificó": n,
+                        "Su promedio en el género": media, "Diferencia con su promedio": media - general,
+                        f"Peso n/(n+{SUAVIZADO})": factor, "Afinidad": factor * (media - general)})
+    generos = pd.DataFrame(generos).sort_values("Afinidad", ascending=False)
+    epocas = []
+    for c in modelos.decadas["preparar"]["features"].columnas_:
+        epocas.append({"Época": EPOCA_CORTA[c].capitalize(), "Parte de su historial": float(fila[c]),
+                       "arcsen(√p)": float(np.arcsin(np.sqrt(fila[c])))})
+    return generos, pd.DataFrame(epocas), general, int(fila["cantidad_valoraciones"])
 
 
 def grafico_fanaticos(usuarios):
     """Mapa de calor del espacio de géneros con resaltado cruzado desde las barras de género."""
     datos = usuarios[["G_PC1", "G_PC2", "genero_afin"]]
     genero = alt.selection_point(fields=["genero_afin"], name="genero")
-    x = alt.X("G_PC1:Q", bin=alt.Bin(step=0.8), title="Eje 1 de géneros")
-    y = alt.Y("G_PC2:Q", bin=alt.Bin(step=0.8), title="Eje 2 de géneros")
+    x = alt.X("G_PC1:Q", bin=alt.Bin(step=0.8), title=titulo_eje("Géneros", 1))
+    y = alt.Y("G_PC2:Q", bin=alt.Bin(step=0.8), title=titulo_eje("Géneros", 2))
     calor = alt.Chart(datos).mark_rect().encode(
         x=x, y=y, color=alt.Color("count():Q", title="Usuarios por celda",
                                   scale=alt.Scale(type="sqrt", range=["#f4f1e4", NAVY]),
@@ -691,8 +782,8 @@ def grafico_elegir_k(particiones, evaluacion):
     k_sel = alt.param(name="k_sel", value=2, bind=alt.binding_radio(options=[2, 3, 4, 5], name="Cantidad de grupos: "))
     nube = alt.Chart(particiones).transform_filter("datum.k == k_sel").mark_point(
         filled=False, size=14, strokeWidth=0.9, opacity=0.6).encode(
-        x=alt.X("x:Q", title="Eje 1 de géneros", axis=alt.Axis(grid=False)),
-        y=alt.Y("y:Q", title="Eje 2 de géneros", axis=alt.Axis(grid=False)),
+        x=alt.X("x:Q", title=titulo_eje("Géneros", 1), axis=alt.Axis(grid=False)),
+        y=alt.Y("y:Q", title=titulo_eje("Géneros", 2), axis=alt.Axis(grid=False)),
         color=alt.Color("grupo:N", title=None, legend=None,
                         scale=alt.Scale(domain=[f"Grupo {i}" for i in range(1, 6)], range=COLORES_K)),
     ).add_params(k_sel).properties(width=380, height=300)
@@ -904,8 +995,8 @@ def grafico_copa(usuarios, espacio, minimo):
     elegido = alt.selection_point(fields=["grupo"], bind="legend")
     brush = alt.selection_interval(name="brush")
     nube = alt.Chart(datos).mark_circle(size=22).encode(
-        x=alt.X("x:Q", title=f"Eje 1 de {espacio.lower()}", scale=alt.Scale(zero=False)),
-        y=alt.Y("y:Q", title=f"Eje 2 de {espacio.lower()}", scale=alt.Scale(zero=False)),
+        x=alt.X("x:Q", title=titulo_eje(espacio, 1), scale=alt.Scale(zero=False)),
+        y=alt.Y("y:Q", title=titulo_eje(espacio, 2), scale=alt.Scale(zero=False)),
         color=alt.condition(brush, alt.Color("grupo:N", scale=escala, title="Grupo (clic para resaltar)",
                                              legend=alt.Legend(orient="top", labelLimit=320)), alt.value(APAGADO)),
         opacity=alt.condition(elegido, alt.value(0.75), alt.value(0.06)),
@@ -935,17 +1026,30 @@ def grafico_copa(usuarios, espacio, minimo):
 # ---------------------------------------------------------------------------
 # 9 · Un usuario: vecinos y recomendaciones
 # ---------------------------------------------------------------------------
+# cuántas películas recomendar: en evaluacion_recomendador.ipynb (Parte 6), cada una de las primeras 9
+# acierta al menos 1 de cada 5 veces y la 10.ª ya no; la precisión baja de a poco, sin un salto
+N_RECOMENDACIONES = 9
+VECINOS = 100
+
+
 def distancias(ids, zg, zd, usuario):
+    """Distancia del usuario a todos los demás: promedio de la distancia en géneros y en épocas.
+
+    Cada una se divide por la raíz de su cantidad de ejes (8 y 3) para que los dos bloques pesen igual.
+    """
     i = int(np.where(ids == usuario)[0][0])
     dg = np.linalg.norm(zg - zg[i], axis=1) / np.sqrt(zg.shape[1])
     dd = np.linalg.norm(zd - zd[i], axis=1) / np.sqrt(zd.shape[1])
-    sim = pd.DataFrame({"userId": ids, "distancia": (dg + dd) / 2})
+    sim = pd.DataFrame({"userId": ids, "distancia": (dg + dd) / 2, "dist_generos": dg, "dist_epocas": dd})
     return sim[sim["userId"] != usuario].sort_values("distancia")
 
 
-def recomendar(similitud, ratings, peliculas, usuario, n=6, cantidad=100):
+def recomendar(similitud, ratings, peliculas, usuario, n=N_RECOMENDACIONES, cantidad=VECINOS):
     """Votos ponderados: cada uno de los usuarios más parecidos vota por las películas que calificó
     con 4 o más, y su voto pesa más cuanto más cerca está.
+
+    El apoyo de una película es la parte de los votos posibles que recibió: 1 si les hubiera gustado a
+    todos los vecinos. Ordenar por apoyo es lo mismo que ordenar por votos.
 
     Antes se ordenaba por el promedio de los vecinos, aceptando películas que habían visto sólo 2 de
     ellos: así subían rarezas con dos notas altas. En evaluacion_recomendador.ipynb esa regla acertaba
@@ -955,16 +1059,66 @@ def recomendar(similitud, ratings, peliculas, usuario, n=6, cantidad=100):
     vistas = set(ratings.loc[ratings["userId"] == usuario, "movieId"])
     con_titulo = set(peliculas["movieId"])
     vecinos = similitud.head(cantidad)
+    peso_total = (1 / (vecinos["distancia"] + 0.001)).sum()
     r = ratings[ratings["userId"].isin(vecinos["userId"])
                 & ~ratings["movieId"].isin(vistas)
-                & ratings["movieId"].isin(con_titulo)].merge(vecinos, on="userId")
+                & ratings["movieId"].isin(con_titulo)].merge(vecinos[["userId", "distancia"]], on="userId")
     r["voto"] = (r["rating"] >= 4) / (r["distancia"] + 0.001)
     rec = r.groupby("movieId").agg(score=("voto", "sum"),
                                    votantes=("rating", lambda x: int((x >= 4).sum())),
                                    cantidad_vecinos=("userId", "nunique"),
                                    rating_promedio=("rating", "mean")).reset_index()
+    rec["apoyo"] = rec["score"] / peso_total
     rec = rec[rec["votantes"] > 0].sort_values(["score", "votantes"], ascending=False).head(n)
     return rec.merge(peliculas, on="movieId", how="left"), cantidad
+
+
+def explicar_vecinos(usuario, similitud, usuarios, ratings, peliculas, k=5):
+    """Los k vecinos más cercanos y en qué se parecen al usuario: géneros y películas que comparten."""
+    tabla = usuarios.set_index("userId")
+    cols = [c for c in tabla.columns if c.startswith("g_")]
+    titulo_de = peliculas.set_index("movieId")["titulo"]
+    gustan = ratings[ratings["rating"] >= 4].groupby("userId")["movieId"].apply(set)
+    mios = gustan.get(usuario, set())
+    top_mio = set(tabla.loc[usuario, cols].astype(float).nlargest(4).index)
+    filas = []
+    for _, v in similitud.head(k).iterrows():
+        u = int(v["userId"])
+        top_suyo = set(tabla.loc[u, cols].astype(float).nlargest(4).index)
+        comunes_g = [c[2:] for c in tabla.loc[usuario, cols].astype(float).sort_values(ascending=False).index
+                     if c in top_mio & top_suyo]
+        comunes_p = mios & gustan.get(u, set())
+        populares = (ratings[ratings["movieId"].isin(comunes_p) & (ratings["rating"] >= 4)]
+                     ["movieId"].value_counts().index[:3])
+        filas.append({"Usuario": u, "Distancia": v["distancia"], "En géneros": v["dist_generos"],
+                      "En épocas": v["dist_epocas"], "Perfil": tabla.loc[u, "perfil"],
+                      "Géneros favoritos en común": ", ".join(comunes_g) if comunes_g else "—",
+                      "Películas que les gustaron a los dos": len(comunes_p),
+                      "Por ejemplo": " · ".join(titulo_de.get(m, str(m)) for m in populares)})
+    return pd.DataFrame(filas)
+
+
+def grafico_top(rec, cantidad):
+    """El top de los vecinos: una barra por película con su apoyo, en orden."""
+    t = rec.assign(
+        nombre=[f"{i}. {titulo} ({str(f)[:4] if pd.notna(f) else 's/f'})"
+                for i, (titulo, f) in enumerate(zip(rec["titulo"], rec["fecha_estreno"]), start=1)],
+        generos=[" · ".join(GENERO_ES.get(g, g) for g in str(x).split("|")) if pd.notna(x) else ""
+                 for x in rec["genres"]],
+        etiqueta=[f"{dec(a * 100, 0)} % · a {v} de {cantidad}" for a, v in zip(rec["apoyo"], rec["votantes"])])
+    y = alt.Y("nombre:N", title=None, sort=list(t["nombre"]), axis=alt.Axis(labelLimit=0, labelFontSize=12))
+    x = alt.X("apoyo:Q", title=f"Apoyo: parte de sus {cantidad} vecinos a los que les gustó (pesando más a los más parecidos)",
+              scale=alt.Scale(domain=[0, 1]), axis=alt.Axis(format="%", values=[0, 0.25, 0.5, 0.75, 1]))
+    barras = alt.Chart(t).mark_bar(size=16, cornerRadiusEnd=4, color=EPOCA_RECIENTE).encode(
+        x=x, y=y, tooltip=[alt.Tooltip("titulo:N", title="Película"), alt.Tooltip("generos:N", title="Géneros"),
+                           alt.Tooltip("votantes:Q", title=f"Le gustó a (de {cantidad})"),
+                           alt.Tooltip("apoyo:Q", title="Apoyo", format=".0%"),
+                           alt.Tooltip("rating_promedio:Q", title="Promedio de los que la vieron", format=".2f")])
+    texto = alt.Chart(t).mark_text(align="left", dx=6, fontSize=11, color=TEXTO).encode(x=x, y=y, text="etiqueta:N")
+    return (barras + texto).properties(height=34 * len(t) + 110, title=titulo(
+        f"Su top {len(t)}: las películas que más les gustaron a sus {cantidad} usuarios más parecidos",
+        f"Recomendamos {len(t)} porque, en nuestras pruebas, cada una de las primeras {N_RECOMENDACIONES} acierta "
+        "al menos 1 de cada 5 veces; de ahí para abajo, menos.")).configure_view(stroke=None)
 
 
 def grafico_usuario_en_espacio(usuarios, usuario, vecinos, espacio):
@@ -977,8 +1131,8 @@ def grafico_usuario_en_espacio(usuarios, usuario, vecinos, espacio):
     escala = alt.Scale(domain=["Resto", "Los 5 más parecidos", "Usuario elegido"],
                        range=[APAGADO, CHARTREUSE, QUEMADO])
     return alt.Chart(d).mark_circle().encode(
-        x=alt.X("x:Q", title=f"Eje 1 de {espacio.lower()}", scale=alt.Scale(zero=False)),
-        y=alt.Y("y:Q", title=f"Eje 2 de {espacio.lower()}", scale=alt.Scale(zero=False)),
+        x=alt.X("x:Q", title=titulo_eje(espacio, 1), scale=alt.Scale(zero=False)),
+        y=alt.Y("y:Q", title=titulo_eje(espacio, 2), scale=alt.Scale(zero=False)),
         color=alt.Color("tipo:N", scale=escala, title=None, legend=alt.Legend(orient="top")),
         size=alt.Size("tipo:N", scale=alt.Scale(domain=escala.domain, range=[14, 90, 200]), legend=None),
         order=alt.Order("orden:Q"),

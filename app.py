@@ -66,12 +66,14 @@ def tablas_historia():
         "umbral": h.tabla_umbral(silver, modelos),
         "variables": h.tabla_variables(silver, modelos),
         "varianza": h.tabla_varianza(modelos),
-        "cargas": h.tabla_cargas(modelos),
+        "cargas_todas": h.tabla_cargas_todas(modelos),
     }
 
 
 usuarios = usuarios_tabla()
 T = tablas_historia()
+h.fijar_ejes(T["cargas_todas"])   # cada eje de las PCA con nombre, para todos los gráficos
+EJEMPLO = int(usuarios["userId"].iloc[0])   # el mismo usuario que aparece primero en la sección 8
 act = h.resumen_actividad(silver)
 
 
@@ -94,6 +96,11 @@ def seccion(numero, nombre, ancla, afirmacion):
 
 def grafico(chart, descripcion):
     st.altair_chart(chart, width="stretch", alt=descripcion)
+
+
+def como_leer(texto):
+    """Guía corta debajo de un gráfico: qué es cada marca, qué miden los ejes y qué mirar."""
+    st.caption(f":material/menu_book: **Cómo leer este gráfico.** {texto}")
 
 
 # ---------------------------------------------------------------------------
@@ -143,6 +150,7 @@ R = origen["resumen"]
 estaciones = h.tabla_recorrido(R)
 st.markdown("**El recorrido.** Partimos de los votos crudos y llegamos a recomendar películas:")
 grafico(h.grafico_recorrido(estaciones), "Recorrido del proyecto en nueve pasos, de los votos a la recomendación")
+como_leer('Cada punto es un paso del proyecto, de izquierda a derecha. El color marca el tramo: datos (burnt orange), modelo (chartreuse) y resultado (azul). Debajo de cada paso está la decisión que tomamos; pasá el mouse por un punto para verla completa.')
 
 
 # ---------------------------------------------------------------------------
@@ -186,6 +194,7 @@ with der:
              f"**{h.MIN_RATINGS}**.")
 grafico(h.grafico_muestra_vs_poblacion(origen["poblacion"], silver),
         "Histogramas superpuestos de ratings por usuario: MovieLens y la muestra")
+como_leer('Cada barra es un rango de cantidad de ratings por usuario. El eje x está en escala logarítmica: de una marca a la siguiente, la cantidad se multiplica. El eje y es qué parte de cada grupo cae en ese rango. En azul oscuro, los usuarios de MovieLens con 100 ratings o más; en burnt orange, nuestra muestra; donde se superponen, el color se mezcla. Si las dos siluetas coinciden, la muestra se parece a MovieLens.')
 with st.expander("Ver los números", icon=":material/table_chart:"):
     st.dataframe(T["poblacion"], hide_index=True, alt="Usuarios por intervalo de ratings")
 
@@ -203,6 +212,7 @@ with der:
 c1, c2 = st.columns([3, 2], gap="large")
 with c1:
     grafico(h.grafico_cobertura(origen["cobertura"], R), "Ratings cubiertos según cuántas películas se consultan")
+    como_leer('El eje x ordena las películas de la más vista a la menos vista (escala logarítmica). El eje y es qué parte de todos los ratings de la muestra suman las películas hasta ese punto. La zona en burnt orange son las películas que consultamos a TMDB, y el punto marca cuánto cubren.')
 with c2:
     st.space("medium")
     st.caption("Las mismas filas del paso 1, después del cruce con TMDB:")
@@ -220,7 +230,20 @@ with izq:
 with der:
     decision("Calcular las estadísticas generales del usuario **antes** del cruce con TMDB, para que nadie "
              "pierda votos por una película que TMDB no tiene.")
+st.markdown(
+    "**Qué tiene cada fila.** Una fila es un usuario, y sus columnas se agrupan en cuatro tipos:\n"
+    "- **Actividad:** cuántas películas calificó (con y sin el tope de 500), su promedio general, su desvío "
+    "y la fecha de su primer y último voto.\n"
+    "- **Por género (19 × 2 columnas):** para cada género de TMDB, su promedio en ese género (`Drama`, "
+    "`Comedy`…) y cuántas películas de ese género calificó (`n_Drama`, `n_Comedy`…).\n"
+    "- **Por época (6 columnas):** qué parte de su historial es de antes de 1980, de los 80, 90, 2000, 2010 "
+    "y de 2020 en adelante (`prop_1990s`…).\n"
+    "- **Otras:** el género con mejor promedio, cuánto varían los años de estreno y cuánto tarda en ver "
+    "una película desde que se estrena."
+)
 st.dataframe(silver.head(5), hide_index=True, alt="Primeras filas de la tabla silver")
+st.caption(f"Las primeras cinco filas. La primera es el usuario {EJEMPLO}: en la sección 3 armamos sus "
+           "variables del modelo paso a paso.")
 
 
 # ---------------------------------------------------------------------------
@@ -243,6 +266,7 @@ with der:
              f"El {h.SUAVIZADO} se lee así: con {h.SUAVIZADO} películas del género, la diferencia "
              "queda en la mitad.")
 grafico(h.grafico_trampa(T["trampa"]), "Dispersión de la afinidad por género según cantidad de películas")
+como_leer('Cada columna del eje x junta los pares usuario × género según cuántas películas de ese género calificó el usuario. El eje y es la diferencia entre su promedio en el género y su promedio general (0 = igual que su promedio). La banda clara cubre el 90 % central de esos pares; la oscura, el 50 %; la línea es la mediana. Gris: el promedio crudo; burnt orange: el amortiguado. Con pocas películas la banda gris es muy ancha, porque cualquier diferencia puede salir por azar, y la de burnt orange se cierra hacia 0.')
 with st.expander("Ver los números", icon=":material/table_chart:"):
     st.dataframe(T["trampa"].round(3), hide_index=True, alt="Percentiles de la afinidad por tramo")
 
@@ -253,6 +277,7 @@ st.markdown(
 izq, der = st.columns([3, 2], gap="large")
 with izq:
     grafico(h.grafico_umbral(T["umbral"]), h.alt_umbral(T["umbral"]))
+    como_leer('Cada columna es un mínimo de ratings posible, y el elegido está resaltado. Arriba, cuántos usuarios quedan y qué parte de la muestra son. Abajo, qué parte de las afinidades se calcula con muy pocas películas del género (las frágiles). Subir el mínimo baja las frágiles, pero cuesta usuarios.')
     st.caption(f"Fuente: MovieLens 32M, muestra de {h.fmt(len(silver))} usuarios con ≥ 100 ratings "
                f"(random_state 42). Afinidad frágil: par usuario × género con menos de {h.POCAS} películas, "
                "sobre los géneros que usa el modelo.")
@@ -282,6 +307,38 @@ st.markdown(
 )
 st.table(T["variables"].set_index("Variable"))
 
+st.subheader(f"Un ejemplo: las 22 variables del usuario {EJEMPLO}", anchor="ejemplo-variables")
+gen_ej, epo_ej, prom_ej, n_ej = h.tabla_fila_usuario(modelos, EJEMPLO)
+st.markdown(
+    f"Calificó **{h.fmt(n_ej)} películas** con un promedio de **{h.dec(prom_ej, 2)} estrellas**. Con su fila "
+    "de la tabla silver calculamos dos bloques de variables, todas interpretables."
+)
+c1, c2 = st.columns([3, 2], gap="large")
+with c1:
+    st.markdown("**17 afinidades por género:** cuánto más (o menos) le gusta un género que su propio "
+                "promedio, achicado cuando vio pocas películas de ese género (sección 2).")
+    st.latex(r"\text{afinidad}_g = \frac{n_g}{n_g + 15}\,\left(\bar r_g - \bar r\right)")
+    st.caption("n_g: películas del género que calificó · r̄_g: su promedio en el género · r̄: su promedio general.")
+    st.dataframe(gen_ej, hide_index=True, alt=f"Afinidades por género del usuario {EJEMPLO}",
+                 column_config={c: st.column_config.NumberColumn(format="%+.3f")
+                                for c in ["Diferencia con su promedio", "Afinidad"]}
+                 | {"Su promedio en el género": st.column_config.NumberColumn(format="%.2f"),
+                    f"Peso n/(n+{h.SUAVIZADO})": st.column_config.NumberColumn(format="%.2f")})
+with c2:
+    st.markdown("**5 épocas:** qué parte de su historial es de cada época. Se transforma con "
+                "arcsen(√p) para que las diferencias cerca de 0 % y de 100 % pesen parecido.")
+    st.latex(r"\text{época}_e = \arcsin\sqrt{p_e}")
+    st.caption("p_e: proporción de sus películas que se estrenaron en esa época. 2020+ queda afuera.")
+    st.dataframe(epo_ej, hide_index=True, alt=f"Épocas del usuario {EJEMPLO}",
+                 column_config={"Parte de su historial": st.column_config.ProgressColumn(
+                     format="percent", min_value=0, max_value=1),
+                     "arcsen(√p)": st.column_config.NumberColumn(format="%.3f")})
+mejor = gen_ej.iloc[0]
+st.caption(f"Cómo leerlo: su afinidad más alta es {mejor['Género']} ({h.dec(mejor['Afinidad'], 3)}): la califica "
+           f"{h.dec(mejor['Diferencia con su promedio'], 2)} estrellas por encima de su promedio, con "
+           f"{mejor['Películas que calificó']} películas, así que la diferencia casi no se achica. Estas 22 "
+           "variables, para cada uno de los 3.503 usuarios, son la entrada de la PCA.")
+
 
 # ---------------------------------------------------------------------------
 # 5 · Menos dimensiones
@@ -296,22 +353,65 @@ with izq:
     )
 with der:
     decision("Conservar al menos el **80 % de la varianza** en cada bloque.")
-izq, der = st.columns(2, gap="large")
-with izq:
-    grafico(h.grafico_varianza(T["varianza"]), "Varianza acumulada de las dos PCA")
-with der:
-    grafico(h.grafico_cargas(T["cargas"]), "Cargas de la primera componente de géneros")
+ejes_tabla = h.tabla_ejes(T["cargas_todas"])
+n_g = int((ejes_tabla["Bloque"] == "Géneros").sum())
+n_e = int((ejes_tabla["Bloque"] == "Épocas").sum())
+var_g = ejes_tabla.loc[ejes_tabla["Bloque"] == "Géneros", "Varianza que explica"].sum()
+var_e = ejes_tabla.loc[ejes_tabla["Bloque"] == "Épocas", "Varianza que explica"].sum()
+st.markdown("**La receta de cada PCA.** Las dos siguen los mismos pasos, cada una con sus variables:")
+r1, r2 = st.columns(2, gap="large")
+with r1:
+    with st.container(border=True):
+        st.markdown(f":orange[**Géneros**]\n"
+                    f"1. **17 afinidades** por género (sección 3).\n"
+                    f"2. **Estandarizar:** cada afinidad queda con media 0 y desvío 1, para que ningún género "
+                    f"pese más sólo por variar más.\n"
+                    f"3. **PCA:** se buscan direcciones que resumen géneros que se mueven juntos, y se guardan "
+                    f"hasta llegar al 80 % de la varianza: **{n_g} ejes, {h.dec(var_g * 100, 1)} %**.\n"
+                    f"4. Los **{n_g} ejes** son la entrada de K-means y de las distancias del recomendador.")
+with r2:
+    with st.container(border=True):
+        st.markdown(f":blue[**Épocas**]\n"
+                    f"1. **5 proporciones** del historial por época, con arcsen(√p) (sección 3).\n"
+                    f"2. **Estandarizar**, igual que en géneros.\n"
+                    f"3. **PCA** hasta el 80 % de la varianza: **{n_e} ejes, {h.dec(var_e * 100, 1)} %**.\n"
+                    f"4. Los **{n_e} ejes** van a K-means y a las distancias.")
+grafico(h.grafico_varianza(T["varianza"]), "Varianza acumulada de las dos PCA")
+como_leer('Cada línea es una PCA. El eje x es cuántos ejes se guardan y el eje y, qué parte de la información (la varianza) explican juntos. La línea punteada es el 80 % que pedimos; el círculo marca dónde lo alcanza cada PCA.')
+st.markdown(
+    "**Qué significa cada eje.** Un eje de la PCA es una combinación de las variables: cada una entra con un "
+    "peso, la **carga**. Las variables con carga grande definen el eje; el signo sólo dice hacia qué lado "
+    "empujan. Por eso cada eje se puede leer como una oposición: un usuario a la izquierda del eje 1 de "
+    "géneros tiene más afinidad por drama y crimen; uno a la derecha, por aventura y familia."
+)
+c1, c2 = st.columns(2, gap="large")
+with c1:
+    grafico(h.grafico_cargas_eje(T["cargas_todas"], "Géneros"), "Cargas de cada eje de la PCA de géneros")
+with c2:
+    grafico(h.grafico_cargas_eje(T["cargas_todas"], "Épocas"), "Cargas de cada eje de la PCA de épocas")
+como_leer("Cada barra es una variable (un género o una "
+           "época) y su largo es la carga: cuánto pesa en el eje elegido. Barras largas = variables que "
+           "definen el eje. El color dice hacia qué lado empujan: en burnt orange, hacia la izquierda del eje; "
+           "en azul, hacia la derecha. El signo en sí es arbitrario: lo que importa es qué variables quedan "
+           "de cada lado.")
+st.markdown("**Los ejes, con nombre.** Así se leen en todos los gráficos de la página:")
+st.dataframe(ejes_tabla, hide_index=True, alt="Cada eje de las dos PCA, con su varianza y lo que opone",
+             column_config={"Varianza que explica": st.column_config.ProgressColumn(
+                 format="percent", min_value=0, max_value=0.6)})
+st.caption("Los primeros ejes son los más importantes y los más fáciles de leer; los últimos de géneros son "
+           "matices chicos (5 % cada uno) que K-means usa igual.")
 st.markdown(
     "Con dos ejes ya se ve la estructura: cada género tiene su zona. Elegí un género abajo para ver dónde "
     "están los usuarios a los que más les gusta."
 )
 grafico(h.grafico_fanaticos(usuarios),
         "Mapa de calor del espacio de géneros con los usuarios de cada género resaltados")
+como_leer('Arriba, el plano de los dos primeros ejes de géneros dividido en celdas: cuanto más oscura la celda, más usuarios hay en esa zona. Abajo, cuántos usuarios tienen cada género como su afinidad más alta. Al hacer clic en una barra, los círculos muestran en qué celdas están esos usuarios (más grande = más usuarios). Doble clic para volver a ver todos.')
 with st.expander("Ver los números", icon=":material/table_chart:"):
     c1, c2 = st.columns(2)
     c1.dataframe(T["varianza"], hide_index=True, alt="Varianza acumulada por componente",
                  column_config={"acumulada": st.column_config.NumberColumn(format="percent")})
-    c2.dataframe(T["cargas"].round(3), hide_index=True, alt="Cargas de la primera componente")
+    c2.dataframe(T["cargas_todas"].round(3), hide_index=True, alt="Cargas de cada variable en cada eje")
 
 
 # ---------------------------------------------------------------------------
@@ -332,9 +432,12 @@ with der:
     decision("**k = 2** en géneros y **k = 2** en épocas. Cada usuario queda con dos etiquetas, que "
              "cruzadas dan cuatro perfiles.")
 grafico(h.grafico_senales(ev), "Codo, silhouette y estabilidad según la cantidad de grupos, por bloque")
+como_leer('Un panel por bloque. El eje x es la cantidad de grupos (k) y el eje y, cada medida de 0 a 1. Dispersión (el codo): menos es mejor, y lo que importa es dónde deja de bajar mucho. Separación (la silhouette): más es mejor. Estabilidad: más es mejor; 1 significa que salen los mismos grupos con cualquier 80 % de los usuarios. La banda celeste marca k = 2.')
 grafico(h.grafico_elegir_k(particiones, ev),
         "Nube del espacio de géneros partida en 2 a 5 grupos, con un control para elegir la cantidad")
+como_leer('Cada círculo es un usuario en los dos primeros ejes de géneros, pintado según el grupo que le asigna K-means. Los botones de abajo cambian la cantidad de grupos. Las barras de la derecha muestran las tres medidas para cada k, con el elegido en azul.')
 grafico(h.grafico_ari(ari), "Coincidencia del modelo conjunto con los modelos separados")
+como_leer('Cada barra compara el modelo conjunto (géneros y épocas juntos) con uno de los dos modelos separados. El ARI va de 0 (coinciden como al azar) a 1 (son idénticos): el conjunto copia casi exacto a las épocas y no se parece en nada a los géneros.')
 sil_generos = ev[(ev["bloque"] == "Géneros") & (ev["k"] == 2)]["silhouette"].iloc[0]
 st.caption(f"La separación en géneros es modesta (silhouette {h.dec(sil_generos, 3)}): los grupos son "
            f"tendencias, no categorías cerradas. El modelo conjunto tiene silhouette {h.dec(sil_conjunto, 3)}.")
@@ -364,11 +467,14 @@ st.markdown(
     "lo que mira**. Las dos respuestas no dependen una de la otra, así que cada combinación es un perfil."
 )
 grafico(h.grafico_cruce(cruce, p_chi, v_cramer), "Cruce de los grupos de género y de época")
+como_leer('Cada columna es un grupo de género, y su ancho es cuántos usuarios tiene. Dentro, los dos bloques son el reparto entre los grupos de época, con la cantidad de usuarios y el %. La línea es el reparto de todos los usuarios: si los cortes de las dos columnas caen sobre ella, el género y la época no dependen uno del otro.')
 c1, c2 = st.columns(2, gap="large")
 with c1:
     grafico(h.grafico_perfil_generos(perfil_g, orden_g), "Afinidad media por género en cada grupo")
+    como_leer('Cada fila es un género. Los dos puntos son la afinidad media de cada grupo de género: a la derecha del 0, el género les gusta más que su propio promedio. La línea une los dos puntos: cuanto más larga, más distinto lo ven los dos grupos. Arriba quedan los géneros que prefiere un grupo; abajo, los del otro.')
 with c2:
     grafico(h.grafico_perfil_epocas(perfil_e), "Porcentaje del historial por época en cada grupo")
+    como_leer('Para cada época (eje x) hay dos barras, una por grupo de época: qué parte del historial de ese grupo, en promedio, es de películas de esa época. Mide qué ven, no cuánto les gustan.')
 
 st.subheader("¿Gustos distintos, o gente que califica más y gente que califica menos?")
 izq, der = st.columns([3, 2], gap="large")
@@ -389,6 +495,7 @@ with der:
         )
 grafico(h.grafico_actividad_perfiles(usuarios, rho),
         "Nube de usuarios por rating promedio y cantidad de ratings, con reparto por perfil")
+como_leer('Cada círculo hueco es un usuario: su rating promedio (eje x) y cuántas películas calificó (eje y, en escala logarítmica). El color es su perfil. Arrastrá sobre la nube para marcar una zona: las barras muestran cómo se reparten los marcados entre los cuatro perfiles. Si los perfiles fueran «mucha actividad» contra «poca», el reparto cambiaría mucho al marcar arriba o abajo de la nube.')
 with st.expander("Ver los números", icon=":material/table_chart:"):
     c1, c2, c3 = st.columns(3)
     c1.dataframe(cruce, hide_index=True, alt="Usuarios por perfil combinado")
@@ -419,6 +526,10 @@ def copa():
     chart, n = h.grafico_copa(usuarios, espacio, minimo)
     st.caption(f"Mostrando {h.fmt(n)} de {h.fmt(len(usuarios))} usuarios.")
     st.altair_chart(chart, alt="Nube de usuarios con selección y perfil de la selección")
+    como_leer("Cada punto es un usuario en los dos primeros ejes del espacio elegido, con el color de su grupo. "
+              "Arrastrá para marcar un rectángulo: las barras de la derecha muestran el promedio de los "
+              "marcados en cada variable, y la raya negra, el de todos los usuarios. Clic en la leyenda para "
+              "dejar un solo grupo.")
 
 
 copa()
@@ -429,9 +540,25 @@ copa()
 # ---------------------------------------------------------------------------
 seccion(8, "Tu turno", "recomendador", "Un usuario, sus vecinos y sus películas")
 st.markdown(
-    "Elegí un usuario. Buscamos a los más parecidos en los dos espacios (con el mismo peso) y le "
-    "recomendamos películas que esos vecinos calificaron bien y que el usuario todavía no calificó."
+    "Elegí un usuario y te mostramos, paso a paso, cómo le recomendamos películas. La idea es la de un "
+    "amigo con gustos parecidos: buscamos a los usuarios que más se le parecen y le recomendamos lo que a "
+    "ellos les gustó y él todavía no vio."
 )
+with st.container(border=True):
+    st.markdown(
+        ":blue[**Cómo recomendamos, en tres pasos**]\n"
+        "1. **Ubicamos al usuario** con las coordenadas que le da el modelo: los **8 ejes de géneros** y los "
+        "**3 ejes de épocas** de la sección 4.\n"
+        "2. **Medimos qué tan lejos está de cada uno de los otros 3.502 usuarios.** En cada bloque usamos la "
+        "distancia de siempre (la euclídea: la raíz de la suma de las diferencias al cuadrado, eje por eje), "
+        "dividida por la raíz de la cantidad de ejes para que los dos bloques pesen igual, y promediamos:"
+    )
+    st.latex(r"d(u, v) = \frac{1}{2}\left(\frac{\lVert g_u - g_v \rVert}{\sqrt{8}}"
+             r" + \frac{\lVert e_u - e_v \rVert}{\sqrt{3}}\right)")
+    st.markdown(
+        "3. **Los 100 más cercanos votan.** Cada uno vota por las películas que calificó con 4 o más y que el "
+        "usuario no vio; su voto pesa más cuanto más cerca está. Recomendamos las más votadas."
+    )
 
 
 @st.fragment
@@ -464,39 +591,55 @@ def un_usuario():
     with c2:
         grafico(h.grafico_usuario_en_espacio(usuarios, usuario, vecinos, "Épocas"),
                 "Posición del usuario en el espacio de épocas")
+    como_leer("Cada punto gris es un usuario, en los dos primeros ejes de cada espacio. En burnt orange está el "
+              "usuario elegido y en chartreuse, sus 5 más parecidos. Ojo: los parecidos se buscan con todos los "
+              "ejes (8 de géneros y 3 de épocas), así que en este plano de dos ejes pueden verse algo separados.")
     c1, c2 = st.columns(2, gap="large")
     with c1:
         grafico(h.grafico_afinidades_usuario(fila), "Afinidades por género del usuario")
     with c2:
         grafico(h.grafico_epocas_usuario(fila), "Historial del usuario por época")
+    como_leer("A la izquierda, su afinidad por cada género, con las mismas cuentas de la sección 3: a la derecha "
+              "del 0 están los géneros que califica por encima de su propio promedio. A la derecha, qué parte "
+              "de su historial es de cada época.")
+
+    st.subheader("Sus vecinos: por qué se parecen", icon=":material/group:")
+    lejanos = similitud["distancia"]
+    st.markdown(
+        f"Estos son sus 5 usuarios más cercanos. Para tener una escala: la distancia a los otros usuarios va de "
+        f"{h.dec(lejanos.min(), 2)} a {h.dec(lejanos.max(), 2)}, y la mitad está a más de "
+        f"{h.dec(lejanos.median(), 2)}. Al lado, en qué se parecen: los géneros que están entre los 4 favoritos "
+        "de los dos y las películas que a los dos les gustaron (4 o más)."
+    )
+    st.dataframe(h.explicar_vecinos(usuario, similitud, usuarios, ratings, peliculas), hide_index=True,
+                 alt="Los 5 usuarios más parecidos y en qué se parecen",
+                 column_config={c: st.column_config.NumberColumn(format="%.3f")
+                                for c in ["Distancia", "En géneros", "En épocas"]})
+    como_leer("Cada fila es un vecino. La distancia total es el promedio de la distancia en géneros y en épocas "
+              "(menos es más parecido). Los vecinos se parecen en qué tipo de cine les gusta, no necesariamente "
+              "en las películas concretas: puede haber un vecino muy cercano que no comparta ninguna película "
+              "que les haya gustado a los dos, porque vieron películas distintas del mismo estilo. Por eso usamos "
+              "100 vecinos y no 5: entre todos cubren muchas más películas.")
 
     rec, cantidad = h.recomendar(similitud, ratings, peliculas, usuario)
     st.subheader("Películas para recomendarle", icon=":material/theaters:")
-    st.caption(f"Cada uno de los {cantidad} usuarios más parecidos vota por las películas que calificó con 4 "
-               "o más, y su voto pesa más cuanto más se parece. Probamos esta regla escondiendo ratings: "
-               "acierta más que recomendar las películas más populares.")
     if rec.empty:
         st.warning("No encontramos películas con evidencia suficiente para este usuario.")
     else:
-        for fila_cartas in [rec.iloc[:3], rec.iloc[3:6]]:
-            cols = st.columns(3)
-            for col, (_, p) in zip(cols, fila_cartas.iterrows()):
-                with col.container(border=True, height="stretch"):
-                    anio = str(p["fecha_estreno"])[:4] if pd.notna(p["fecha_estreno"]) else "s/f"
-                    st.markdown(f"**{p['titulo']}** · {anio}")
-                    generos = str(p["genres"]).split("|") if pd.notna(p["genres"]) else []
-                    st.caption(" · ".join(h.GENERO_ES.get(g, g) for g in generos))
-                    st.markdown(f":material/thumb_up: le gustó a {int(p['votantes'])} de sus "
-                                f"{cantidad} usuarios más parecidos")
-                    st.caption(f"Promedio entre los que la vieron: {h.dec(p['rating_promedio'], 2)}")
-
-    with st.expander("Los 5 usuarios más parecidos", icon=":material/group:"):
-        tabla = similitud.head(5).merge(usuarios[["userId", "perfil", "cantidad_valoraciones_total"]], on="userId")
-        st.dataframe(tabla, hide_index=True, alt="Usuarios más parecidos",
-                     column_config={"userId": "Usuario", "perfil": "Perfil",
-                                    "cantidad_valoraciones_total": "Ratings",
-                                    "distancia": st.column_config.NumberColumn("Distancia", format="%.3f")})
-
+        grafico(h.grafico_top(rec, cantidad), "Las películas recomendadas con el apoyo de los vecinos")
+        como_leer(f"Cada barra es una película que el usuario no calificó, en el orden en que la recomendamos. Su "
+                  f"largo es el **apoyo**: qué parte de sus {cantidad} vecinos la calificó con 4 o más, pesando "
+                  "más a los más cercanos (100 % = les gustó a todos). Al lado, cuántos vecinos exactamente. Pasá "
+                  "el mouse por una barra para ver los géneros y el promedio que le pusieron los que la vieron.")
+        with st.container(border=True):
+            st.markdown(
+                f":blue[**¿Por qué {len(rec)} y no otra cantidad?**] Lo medimos escondiendo ratings "
+                "(`evaluacion_recomendador.ipynb`, Parte 6): la primera recomendación acierta 4 de cada 10 "
+                f"veces, y la precisión baja de a poco. No hay un salto entre una película y la siguiente donde "
+                f"cortar, así que usamos un criterio de calidad: cada una de las primeras {h.N_RECOMENDACIONES} "
+                "acierta al menos 1 de cada 5 veces, y de ahí para abajo, menos. En todas las posiciones le gana a "
+                "recomendar las películas más populares."
+            )
 
 un_usuario()
 
