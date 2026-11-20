@@ -51,7 +51,7 @@ def tablas_historia():
     return {
         "poblacion": h.tabla_poblacion(origen["poblacion"], silver),
         "trampa": h.tabla_trampa(silver),
-        "umbral": h.tabla_umbral(silver),
+        "umbral": h.tabla_umbral(silver, modelos),
         "variables": h.tabla_variables(silver, modelos),
         "varianza": h.tabla_varianza(modelos),
         "cargas": h.tabla_cargas(modelos),
@@ -227,7 +227,9 @@ with izq:
     )
 with der:
     decision(f"Usar una **media amortiguada**: la diferencia se multiplica por n/(n + {h.SUAVIZADO}). "
-             "Con pocas películas se acerca a cero; con muchas, casi no cambia.")
+             "Con pocas películas se acerca a cero; con muchas, casi no cambia. "
+             f"El {h.SUAVIZADO} se lee así: con {h.SUAVIZADO} películas del género, la diferencia "
+             "queda en la mitad.")
 grafico(h.grafico_trampa(T["trampa"]), "Dispersión de la afinidad por género según cantidad de películas")
 with st.expander("Ver los números", icon=":material/table_chart:"):
     st.dataframe(T["trampa"].round(3), hide_index=True, alt="Percentiles de la afinidad por tramo")
@@ -238,14 +240,23 @@ st.markdown(
 )
 izq, der = st.columns([3, 2], gap="large")
 with izq:
-    grafico(h.grafico_umbral(T["umbral"]), "Usuarios que quedan según el mínimo de ratings")
+    grafico(h.grafico_umbral(T["umbral"]), h.alt_umbral(T["umbral"]))
+    st.caption(f"Fuente: MovieLens 32M, muestra de {h.fmt(len(silver))} usuarios con ≥ 100 ratings "
+               f"(random_state 42). Afinidad frágil: par usuario × género con menos de {h.POCAS} películas, "
+               "sobre los géneros que usa el modelo.")
 with der:
     st.space("large")
     decision(f"Exigir **{h.MIN_RATINGS} ratings**: conserva {h.fmt(act['modelados'])} usuarios y deja "
              "afuera a los historiales más cortos. No decimos que 150 sea óptimo: es un equilibrio entre "
              "perfiles confiables y usuarios perdidos.")
-    st.caption("En la Entrega 3 se probó la sensibilidad: con 100 la separación de géneros baja y con "
-               "250 o 300 se pierde más de la mitad de la muestra.")
+    sil = T["umbral"].set_index("minimo")["silhouette"]
+    altos = sil[sil.index > h.MIN_RATINGS]
+    st.caption(f"La separación de los grupos de géneros casi no cambia con el corte (silhouette "
+               f"{h.dec(sil[100], 3)} con 100, {h.dec(sil[h.MIN_RATINGS], 3)} con {h.MIN_RATINGS} y entre "
+               f"{h.dec(altos.min(), 3)} y {h.dec(altos.max(), 3)} con cortes más altos): lo que se gana "
+               "al subir el mínimo son perfiles mejor respaldados, no grupos más nítidos.")
+with st.expander("Ver los números", icon=":material/table_chart:"):
+    st.dataframe(T["umbral"].round(3), hide_index=True, alt="Usuarios y afinidades frágiles por mínimo")
 
 
 # ---------------------------------------------------------------------------
@@ -443,8 +454,9 @@ def un_usuario():
 
     rec, cantidad = h.recomendar(similitud, ratings, peliculas, usuario)
     st.subheader("Películas para recomendarle", icon=":material/theaters:")
-    st.caption(f"Basadas en los {cantidad} usuarios más parecidos. Cada película tiene que estar calificada "
-               "por al menos 2 de ellos, con promedio de 3,8 o más; los más parecidos pesan más.")
+    st.caption(f"Cada uno de los {cantidad} usuarios más parecidos vota por las películas que calificó con 4 "
+               "o más, y su voto pesa más cuanto más se parece. Probamos esta regla escondiendo ratings: "
+               "acierta más que recomendar las películas más populares.")
     if rec.empty:
         st.warning("No encontramos películas con evidencia suficiente para este usuario.")
     else:
@@ -456,8 +468,9 @@ def un_usuario():
                     st.markdown(f"**{p['titulo']}** · {anio}")
                     generos = str(p["genres"]).split("|") if pd.notna(p["genres"]) else []
                     st.caption(" · ".join(h.GENERO_ES.get(g, g) for g in generos))
-                    st.markdown(f":material/star: {h.dec(p['rating_promedio'], 2)} entre "
-                                f"{int(p['cantidad_vecinos'])} usuarios parecidos")
+                    st.markdown(f":material/thumb_up: le gustó a {int(p['votantes'])} de sus "
+                                f"{cantidad} usuarios más parecidos")
+                    st.caption(f"Promedio entre los que la vieron: {h.dec(p['rating_promedio'], 2)}")
 
     with st.expander("Los 5 usuarios más parecidos", icon=":material/group:"):
         tabla = similitud.head(5).merge(usuarios[["userId", "perfil", "cantidad_valoraciones_total"]], on="userId")

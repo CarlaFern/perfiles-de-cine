@@ -83,10 +83,10 @@ Para un usuario seleccionado:
 3. Se buscan los usuarios más cercanos.
 4. Se recuperan las películas calificadas por esos usuarios.
 5. Se eliminan las películas que el usuario seleccionado ya calificó.
-6. Se conservan películas con evidencia suficiente.
-7. Las recomendaciones se ordenan mediante un promedio ponderado donde los usuarios más cercanos tienen mayor peso.
+6. Cada uno de los **100 usuarios más similares** vota por las películas que calificó con 4 o más, y su voto pesa más cuanto más cerca está.
+7. Se recomiendan las películas con más votos.
 
-La búsqueda comienza con los **100 usuarios más similares** y puede ampliarse automáticamente a **200, 400 u 800** si no existen suficientes películas candidatas.
+La regla se eligió midiendo: en `evaluacion_recomendador.ipynb` se esconde el 20 % de los ratings de cada usuario y se cuenta cuántas de las 10 recomendaciones son películas escondidas que le gustaron. Con votos la precisión@10 es 0,266, contra 0,201 de recomendar las más populares. La regla anterior (promedio de los vecinos, con sólo 2 vecinos por película) daba 0,004, casi como recomendar al azar.
 
 ## Tecnologías utilizadas
 

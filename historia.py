@@ -15,7 +15,7 @@ from sklearn.decomposition import PCA
 from sklearn.metrics import adjusted_rand_score, silhouette_score
 
 from modelado import (COLUMNAS_DECADAS, MIN_RATINGS, SEMILLA, SUAVIZADO,
-                      COBERTURA, entrenar_desde_csv)
+                      COBERTURA, entrenar_desde_csv, preparar_generos)
 
 # el histograma de la muestra contra MovieLens usa 25.000 filas y Altair corta en 5.000
 # (como en la sección 1.2 de la Unidad 4): cada gráfico recibe sólo las columnas que usa
@@ -325,61 +325,133 @@ def tabla_trampa(silver):
         for version, col in [("Promedio crudo", "dif"), (f"Amortiguado (m = {SUAVIZADO})", "amortiguada")]:
             q = sub[col].quantile([.05, .25, .5, .75, .95]).to_numpy()
             filas.append({"tramo": nombre, "version": version, "pares": len(sub),
+                          "n_mediana": float(sub["n"].median()),
                           "p05": q[0], "p25": q[1], "mediana": q[2], "p75": q[3], "p95": q[4]})
     return pd.DataFrame(filas)
 
 
 def grafico_trampa(tabla):
     orden = [t[2] for t in TRAMOS_N]
+    amort = f"Amortiguado (m = {SUAVIZADO})"
     crudo = tabla[tabla["version"] == "Promedio crudo"].set_index("tramo")
+    suave = tabla[tabla["version"] == amort].set_index("tramo")
     ancho_1 = crudo.loc["1", "p95"] - crudo.loc["1", "p05"]
     ancho_50 = crudo.loc["50 o más", "p95"] - crudo.loc["50 o más", "p05"]
-    x = alt.X("tramo:O", sort=orden, title="Películas del género que calificó el usuario",
-              axis=alt.Axis(labelAngle=0))
-    y = alt.Y("p05:Q", title="Promedio del género − promedio propio",
-              scale=alt.Scale(domain=[-2.5, 2]))
-    base = alt.Chart()   # sin datos: la tabla se pasa una sola vez, a la capa que se facetea
-    banda = base.mark_area(opacity=0.25, color=QUEMADO).encode(x=x, y=y, y2="p95:Q")
-    caja = base.mark_area(opacity=0.45, color=QUEMADO).encode(x=x, y="p25:Q", y2="p75:Q")
-    linea = base.mark_line(color=TEXTO, point=True).encode(
-        x=x, y="mediana:Q",
-        tooltip=["tramo:O", alt.Tooltip("pares:Q", title="usuario × género", format=","),
-                 alt.Tooltip("p05:Q", format=".2f"), alt.Tooltip("mediana:Q", format=".2f"),
-                 alt.Tooltip("p95:Q", format=".2f")])
-    # el cero usa la misma tabla que el resto (la faceta exige un solo origen de datos)
-    cero = base.mark_rule(color=GRIS, strokeDash=[3, 3]).encode(y=alt.datum(0))
-    capas = alt.layer(banda, caja, linea, cero, data=tabla).properties(width=440, height=260)
-    return capas.facet(column=alt.Column("version:N", title=None, sort=[
-        "Promedio crudo", f"Amortiguado (m = {SUAVIZADO})"],
-        header=alt.Header(labelFontSize=13, labelColor=TEXTO, labelAnchor="start"))
-    ).resolve_scale(y="shared").properties(title=titulo(
+    # zoom del panel amortiguado: simétrico y con algo de aire sobre el 90 % central
+    tope = float(np.ceil(max(suave["p95"].max(), -suave["p05"].min()) * 10 + 1) / 10)
+    zoom = (2.5 + 2) / (2 * tope)
+    # etiquetas en dos líneas en el panel amortiguado: el tramo y su factor n/(n+m)
+    # (para los tramos con varios valores de n, el factor de la cantidad típica: la mediana)
+    mapa = {t: [t, f"×{dec(n / (n + SUAVIZADO), 2)}"] for t, n in suave["n_mediana"].items()}
+    expr_factor = f"{mapa}[datum.value]".replace("'", '"')
+
+    def panel(version, dominio, cabecera, label_expr=None, titulo_y=None):
+        d = tabla[tabla["version"] == version]
+        x = alt.X("tramo:O", sort=orden, title="Películas del género que calificó el usuario",
+                  axis=alt.Axis(labelAngle=0, labelExpr=label_expr) if label_expr
+                  else alt.Axis(labelAngle=0))
+        y = alt.Y("p05:Q", title=titulo_y, scale=alt.Scale(domain=dominio, nice=False))
+        base = alt.Chart(d)
+        banda = base.mark_area(opacity=0.25, color=QUEMADO).encode(x=x, y=y, y2="p95:Q")
+        caja = base.mark_area(opacity=0.5, color=QUEMADO).encode(x=x, y="p25:Q", y2="p75:Q")
+        linea = base.mark_line(color=TEXTO, strokeWidth=1.5).encode(x=x, y="mediana:Q")
+        # puntos invisibles: sólo para el tooltip
+        tip = base.mark_point(opacity=0, size=400).encode(
+            x=x, y="mediana:Q",
+            tooltip=[alt.Tooltip("tramo:O", title="Películas del género"),
+                     alt.Tooltip("pares:Q", title="Pares usuario × género", format=","),
+                     alt.Tooltip("p05:Q", title="Percentil 5", format="+.2f"),
+                     alt.Tooltip("p25:Q", title="Percentil 25", format="+.2f"),
+                     alt.Tooltip("mediana:Q", title="Mediana", format="+.2f"),
+                     alt.Tooltip("p75:Q", title="Percentil 75", format="+.2f"),
+                     alt.Tooltip("p95:Q", title="Percentil 95", format="+.2f")])
+        cero = base.mark_rule(color=GRIS, strokeDash=[3, 3]).encode(y=alt.datum(0))
+        return alt.layer(banda, caja, linea, tip, cero).properties(
+            width=440, height=260,
+            title=alt.Title(cabecera[0], subtitle=cabecera[1], anchor="start", fontSize=13,
+                            fontWeight="normal", color=TEXTO, subtitleColor=GRIS_CLARO,
+                            subtitleFontSize=11))
+
+    izq = panel("Promedio crudo", [-2.5, 2],
+                ["Promedio crudo", ["Escala de −2,5 a +2", " "]],
+                titulo_y="Promedio del género − promedio propio")
+    der = panel(amort, [-tope, tope],
+                [amort, [f"Escala ampliada ×{dec(zoom, 0)} (de −{dec(tope)} a +{dec(tope)})",
+                         "Solo se aleja de cero quien vio muchas películas del género"]],
+                label_expr=expr_factor)
+    return alt.hconcat(izq, der, spacing=40).resolve_scale(y="independent").properties(title=titulo(
         f"Con una sola película, el «gusto» por un género varía {dec(ancho_1 / ancho_50, 0)} veces más "
         "que con cincuenta",
         ["Banda clara: 90 % central de los pares usuario × género; banda oscura: 50 % central; línea: mediana.",
-         "La versión amortiguada achica la diferencia cuando hay pocas películas y la deja casi igual cuando hay muchas."]))
+         "Debajo de cada tramo del panel derecho, el factor n/(n + m) por el que se multiplica la diferencia "
+         "(en los tramos anchos, el de la cantidad típica)."]))
 
 
-def tabla_umbral(silver):
+UMBRALES = [100, 150, 200, 250, 300, 350, 400]
+POCAS = 5   # una afinidad calculada con menos de 5 películas del género es «frágil»
+
+
+def tabla_umbral(silver, modelos):
+    """Costo (usuarios que quedan) y beneficio (afinidades frágiles, separación) de cada mínimo."""
+    generos = modelos.generos["preparar"]["features"].generos_
     filas = []
-    for x in [100, 150, 200, 250, 300, 400]:
-        n = int((silver["cantidad_valoraciones"] >= x).sum())
-        filas.append({"minimo": x, "usuarios": n, "pct": n / len(silver)})
+    for x in UMBRALES:
+        D = silver[silver["cantidad_valoraciones"] >= x]
+        n = D[[f"n_{g}" for g in generos]].fillna(0).to_numpy()
+        Z = preparar_generos().fit_transform(D)
+        km = KMeans(n_clusters=2, random_state=SEMILLA, n_init=10).fit(Z)
+        filas.append({"minimo": x, "usuarios": len(D), "pct": len(D) / len(silver),
+                      "fragiles": (n < POCAS).mean(), "silhouette": silhouette_score(Z, km.labels_)})
     return pd.DataFrame(filas)
 
 
 def grafico_umbral(tabla):
     fila = tabla.set_index("minimo").loc[MIN_RATINGS]
-    tabla = tabla.assign(t=[f"{fmt(u)} · {dec(p * 100, 0)} %" for u, p in zip(tabla["usuarios"], tabla["pct"])])
+    tabla = tabla.assign(
+        t=[f"{fmt(u)} · {dec(p * 100, 0)} %" for u, p in zip(tabla["usuarios"], tabla["pct"])],
+        tf=[f"{dec(v * 100)} %" for v in tabla["fragiles"]])
     x = alt.X("minimo:O", title="Mínimo de ratings por usuario", axis=alt.Axis(labelAngle=0))
-    barras = alt.Chart(tabla).mark_bar(cornerRadiusEnd=3).encode(
-        x=x, y=alt.Y("usuarios:Q", title="Usuarios que quedan", scale=alt.Scale(domain=[0, 5600])),
-        color=alt.condition(alt.datum.minimo == MIN_RATINGS, alt.value(QUEMADO), alt.value(GRIS)))
-    texto = alt.Chart(tabla).mark_text(dy=-8, fontSize=11, color=TEXTO).encode(
-        x=x, y="usuarios:Q", text="t:N")
-    return (barras + texto).properties(height=370, title=titulo(
+    color = alt.condition(alt.datum.minimo == MIN_RATINGS, alt.value(QUEMADO), alt.value(GRIS))
+    tip = [alt.Tooltip("minimo:O", title="Mínimo de ratings"),
+           alt.Tooltip("usuarios:Q", title="Usuarios que quedan", format=","),
+           alt.Tooltip("pct:Q", title="De la muestra", format=".0%"),
+           alt.Tooltip("fragiles:Q", title=f"Afinidades con menos de {POCAS} películas", format=".1%")]
+    base = alt.Chart(tabla)
+    # costo: piruletas (palito fino + punto) desde cero; las etiquetas dan el número, el eje Y sobra
+    y_u = alt.Y("usuarios:Q", axis=None, scale=alt.Scale(domain=[0, 5600]))
+    # el palito es una barra de 2 px: sale de cero igual que una barra
+    palitos = base.mark_bar(size=2).encode(x=x.axis(None), y=y_u, color=color)
+    cabezas = base.mark_circle(size=90, opacity=1, stroke=FONDO, strokeWidth=2).encode(
+        x=x.axis(None), y=y_u, color=color, tooltip=tip)
+    texto = base.mark_text(dy=-14, fontSize=11, color=TEXTO).encode(x=x.axis(None), y=y_u, text="t:N")
+    costo = (palitos + cabezas + texto).properties(height=200, title=alt.Title(
+        "Usuarios que quedan", anchor="start", fontSize=13, fontWeight="normal", color=TEXTO))
+    # beneficio: cuántas afinidades se calculan con muy pocas películas
+    y_f = alt.Y("fragiles:Q", axis=None, scale=alt.Scale(domain=[0, tabla["fragiles"].max() * 1.35]))
+    linea = base.mark_line(color=GRIS, strokeWidth=1.5).encode(x=x, y=y_f)
+    puntos = base.mark_circle(size=70, opacity=1, stroke=FONDO, strokeWidth=2).encode(
+        x=x, y=y_f, color=color, tooltip=tip)
+    texto_f = base.mark_text(dy=-12, fontSize=11, color=TEXTO).encode(x=x, y=y_f, text="tf:N")
+    beneficio = (linea + puntos + texto_f).properties(height=130, title=alt.Title(
+        f"Afinidades frágiles (menos de {POCAS} películas del género)", anchor="start", fontSize=13,
+        fontWeight="normal", color=TEXTO))
+    return alt.vconcat(costo, beneficio, spacing=14).properties(title=titulo(
         f"Con {MIN_RATINGS} ratings como mínimo quedan {fmt(fila['usuarios'])} usuarios: "
         f"el {dec(fila['pct'] * 100, 0)} %",
-        "Subir el mínimo da perfiles más confiables, pero cada escalón deja afuera a miles."))
+        ["La muestra ya se armó con usuarios de 100 ratings o más: por eso el corte en 100 conserva el 100 %.",
+         "Cada escalón deja afuera a cientos de usuarios y reduce cada vez menos las afinidades frágiles."]))
+
+
+def alt_umbral(tabla):
+    """Texto alternativo del gráfico del umbral: la conclusión y la forma de los datos."""
+    t = tabla.set_index("minimo")
+    a, b, z = t.index[0], MIN_RATINGS, t.index[-1]
+    return (f"Dos gráficos alineados por el mínimo de ratings por usuario, de {a} a {z}. "
+            f"Arriba, usuarios que quedan: {fmt(t.loc[a, 'usuarios'])} con {a}, {fmt(t.loc[b, 'usuarios'])} "
+            f"con {b} (el corte elegido) y {fmt(t.loc[z, 'usuarios'])} con {z}. Abajo, afinidades frágiles: "
+            f"{dec(t.loc[a, 'fragiles'] * 100)} %, {dec(t.loc[b, 'fragiles'] * 100)} % y "
+            f"{dec(t.loc[z, 'fragiles'] * 100)} %. La mayor mejora está entre {a} y {b}; después cada "
+            "escalón mejora menos y sigue perdiendo usuarios.")
 
 
 # ---------------------------------------------------------------------------
@@ -782,24 +854,27 @@ def distancias(ids, zg, zd, usuario):
     return sim[sim["userId"] != usuario].sort_values("distancia")
 
 
-def recomendar(similitud, ratings, peliculas, usuario, n=6):
+def recomendar(similitud, ratings, peliculas, usuario, n=6, cantidad=100):
+    """Votos ponderados: cada uno de los usuarios más parecidos vota por las películas que calificó
+    con 4 o más, y su voto pesa más cuanto más cerca está.
+
+    Antes se ordenaba por el promedio de los vecinos, aceptando películas que habían visto sólo 2 de
+    ellos: así subían rarezas con dos notas altas. En evaluacion_recomendador.ipynb esa regla acertaba
+    casi como el azar (precisión@10 = 0,004) y los votos, 0,266, más que recomendar las más populares
+    (0,201).
+    """
     vistas = set(ratings.loc[ratings["userId"] == usuario, "movieId"])
     con_titulo = set(peliculas["movieId"])
-    for cantidad in [100, 200, 400, 800]:
-        vecinos = similitud.head(cantidad)
-        r = ratings[ratings["userId"].isin(vecinos["userId"])
-                    & ~ratings["movieId"].isin(vistas)
-                    & ratings["movieId"].isin(con_titulo)].merge(vecinos, on="userId")
-        r["peso"] = 1 / (r["distancia"] + 0.001)
-        r["ponderado"] = r["rating"] * r["peso"]
-        rec = r.groupby("movieId").agg(rating_promedio=("rating", "mean"),
-                                       cantidad_vecinos=("userId", "nunique"),
-                                       suma=("ponderado", "sum"), pesos=("peso", "sum")).reset_index()
-        rec["score"] = rec["suma"] / rec["pesos"]
-        rec = rec[(rec["cantidad_vecinos"] >= 2) & (rec["rating_promedio"] >= 3.8)]
-        if len(rec) >= n:
-            break
-    rec = rec.sort_values(["score", "cantidad_vecinos"], ascending=False).head(n)
+    vecinos = similitud.head(cantidad)
+    r = ratings[ratings["userId"].isin(vecinos["userId"])
+                & ~ratings["movieId"].isin(vistas)
+                & ratings["movieId"].isin(con_titulo)].merge(vecinos, on="userId")
+    r["voto"] = (r["rating"] >= 4) / (r["distancia"] + 0.001)
+    rec = r.groupby("movieId").agg(score=("voto", "sum"),
+                                   votantes=("rating", lambda x: int((x >= 4).sum())),
+                                   cantidad_vecinos=("userId", "nunique"),
+                                   rating_promedio=("rating", "mean")).reset_index()
+    rec = rec[rec["votantes"] > 0].sort_values(["score", "votantes"], ascending=False).head(n)
     return rec.merge(peliculas, on="movieId", how="left"), cantidad
 
 
