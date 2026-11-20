@@ -1,0 +1,15 @@
+clave,valor
+ratings_total,32000204
+usuarios_total,200948
+peliculas_total,84432
+usuarios_elegibles,80675
+anio_primer_voto,1995
+anio_ultimo_voto,2023
+usuarios_muestra,5000
+ratings_muestra_completo,1608699
+ratings_muestra,1283510
+peliculas_muestra,26183
+peliculas_consultadas,10000
+peliculas_tmdb,9928
+peliculas_con_genero,9926
+ratings_con_genero,1252696

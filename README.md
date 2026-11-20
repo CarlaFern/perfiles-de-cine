@@ -54,20 +54,21 @@ Los modelos de géneros y épocas se conservaron por separado porque el modelo c
 
 Es **una sola página** que se recorre de arriba hacia abajo, con un índice en la barra lateral que salta a cada sección. Sigue la estructura de **copa de martini** de la Unidad 4: primero la historia guiada (el tallo) y al final la parte para explorar (la copa).
 
+Arranca con **el problema** y **el recorrido**: un esquema de los nueve pasos del proyecto, de la tabla de votos a la recomendación, con la decisión de cada uno.
+
 **La historia**
 
-1. **Los datos**: ratings por usuario en escala logarítmica, con el corte de 150 y el tope de 500.
-2. **Lo que se pierde**: cuántos ratings quedan después de cada etapa del pipeline.
-3. **La trampa de los pocos ratings**: por qué usamos una media amortiguada y un mínimo de 150 ratings.
-4. **Qué entra al modelo**: qué columnas se usan y por qué.
-5. **Menos dimensiones**: varianza acumulada y cargas de las dos PCA.
-6. **Cuántos grupos**: codo, silhouette y comparación con un modelo conjunto.
-7. **Los perfiles**: cruce de los grupos, perfil de cada uno y control de que no dependan de la actividad.
+1. **Los datos**, en cuatro pasos: la tabla cruda de votos de MovieLens; a quién miramos (histogramas superpuestos de MovieLens y la muestra, con intervalos ajustables); qué son las películas (cobertura de las 10.000 consultadas a TMDB); y la tabla silver.
+2. **La trampa de los pocos ratings**: por qué usamos una media amortiguada y un mínimo de 150 ratings.
+3. **Qué entra al modelo**: qué columnas se usan y por qué.
+4. **Menos dimensiones**: varianza acumulada, cargas de las dos PCA y un mapa de calor del espacio de géneros con resaltado cruzado por género.
+5. **Cuántos grupos**: codo, silhouette y comparación con un modelo conjunto.
+6. **Los perfiles**: cruce de los grupos, perfil de cada uno y una nube de usuarios para comprobar que no dependen de la actividad.
 
 **Tu turno**
 
-8. **Explorá los usuarios**: nube de usuarios con selección por leyenda y un recuadro que filtra el perfil de los marcados.
-9. **Un usuario y sus películas**: vecinos más parecidos y recomendaciones.
+7. **Explorá los usuarios**: nube de usuarios con selección por leyenda y un recuadro que filtra el perfil de los marcados.
+8. **Un usuario y sus películas**: vecinos más parecidos y recomendaciones.
 
 Todos los números de los títulos y textos se calculan a partir de los archivos del pipeline (`historia.py`); cada gráfico tiene debajo un desplegable con la tabla de números que muestra.
 
@@ -106,6 +107,8 @@ La búsqueda comienza con los **100 usuarios más similares** y puede ampliarse 
 ├── usuarios_generos.csv         # silver del DAG: una fila por usuario (5.000)
 ├── ratings_selected_users.csv   # ratings del DAG (con el tope de 500) de los 3.503 usuarios modelados
 ├── tmdb_movies_prepared.csv     # películas consultadas en TMDB por el DAG
+├── preparar_origen.py           # resume una vez la salida cruda del DAG para la sección 1
+├── origen_*.csv                 # esos resúmenes: votos crudos, población de MovieLens, cobertura
 ├── .streamlit/config.toml       # tema visual
 ├── requirements.txt
 └── README.md

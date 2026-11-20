@@ -24,6 +24,14 @@ silver, modelos, ratings, peliculas = cargar()
 
 
 @st.cache_data
+def cargar_origen():
+    return h.cargar_origen()
+
+
+origen = cargar_origen()
+
+
+@st.cache_data
 def usuarios_tabla():
     return h.tabla_usuarios(modelos, silver)
 
@@ -41,7 +49,7 @@ def evaluacion_k():
 @st.cache_data
 def tablas_historia():
     return {
-        "etapas": h.tabla_etapas(silver, ratings, peliculas),
+        "poblacion": h.tabla_poblacion(origen["poblacion"], silver),
         "trampa": h.tabla_trampa(silver),
         "umbral": h.tabla_umbral(silver),
         "variables": h.tabla_variables(silver, modelos),
@@ -58,12 +66,17 @@ act = h.resumen_actividad(silver)
 def decision(texto):
     """Caja con la decisión que tomamos en esa etapa."""
     with st.container(border=True):
-        st.markdown(f":red[:material/check_circle: **Decisión**]  \n{texto}")
+        st.markdown(f":violet[:material/check_circle: **Decisión**]  \n{texto}")
+
+
+# color de la etiqueta de cada sección: el de su tramo en el recorrido
+# (red = datos, orange = modelo, blue = resultado; ver .streamlit/config.toml)
+COLOR_TRAMO = {1: "red", 2: "orange", 3: "orange", 4: "orange", 5: "orange", 6: "blue", 7: "blue", 8: "blue"}
 
 
 def seccion(numero, nombre, ancla, afirmacion):
     st.space("large")
-    st.markdown(f":red[**{numero} · {nombre.upper()}**]")
+    st.markdown(f":{COLOR_TRAMO[numero]}[**{numero} · {nombre.upper()}**]")
     st.header(afirmacion, anchor=ancla)
 
 
@@ -74,20 +87,27 @@ def grafico(chart, descripcion):
 # ---------------------------------------------------------------------------
 # Índice lateral
 # ---------------------------------------------------------------------------
+# (número, título, ancla, subpasos); el color de la insignia es el del tramo (COLOR_TRAMO)
 INDICE = [
-    ("La historia", [("inicio", "El proyecto"), ("datos", "1 · Los datos"),
-                     ("pipeline", "2 · Lo que se pierde"), ("trampa", "3 · La trampa de los pocos ratings"),
-                     ("variables", "4 · Qué entra al modelo"), ("pca", "5 · Menos dimensiones"),
-                     ("grupos", "6 · Cuántos grupos"), ("perfiles", "7 · Los perfiles")]),
-    ("Tu turno", [("explora", "8 · Explorá los usuarios"), ("recomendador", "9 · Un usuario y sus películas")]),
+    (1, "Los datos", "datos", [("Una tabla de votos", "paso-crudo"), ("A quién miramos", "paso-muestra"),
+                                ("TMDB", "paso-tmdb"), ("La tabla silver", "paso-silver")]),
+    (2, "La trampa de los pocos ratings", "trampa", []),
+    (3, "Qué entra al modelo", "variables", []),
+    (4, "Menos dimensiones", "pca", []),
+    (5, "Cuántos grupos", "grupos", []),
+    (6, "Los perfiles", "perfiles", []),
+    (7, "Explorá los usuarios", "explora", []),
+    (8, "Un usuario y sus películas", "recomendador", []),
 ]
 
 with st.sidebar:
-    st.subheader("Perfiles de cine", icon=":material/movie:")
-    st.caption("Ciencia de Datos · UTN FRM · 2026 · Grupo 5K09-05")
-    for grupo, items in INDICE:
-        st.markdown(f"**{grupo}**")
-        st.markdown("\n".join(f"- [{texto}](#{ancla})" for ancla, texto in items))
+    st.markdown("**Perfiles de cine**")
+    st.caption("Proyecto integrador · Ciencia de Datos · UTN FRM 2026 · Grupo 5K09-05")
+    st.markdown(":gray-badge[00] [El problema y el recorrido](#inicio)")
+    for numero, titulo, ancla, pasos in INDICE:
+        st.markdown(f":{COLOR_TRAMO[numero]}-badge[{numero:02d}] [{titulo}](#{ancla})")
+        if pasos:
+            st.caption("  \n".join(f":material/subdirectory_arrow_right: [{p}](#{a})" for p, a in pasos))
     st.space("small")
     st.caption("MovieLens 32M · 5.000 usuarios al azar (random_state 42) · TMDB")
 
@@ -95,71 +115,106 @@ with st.sidebar:
 # ---------------------------------------------------------------------------
 # El proyecto
 # ---------------------------------------------------------------------------
-st.markdown(":red[**PROYECTO INTEGRADOR · CIENCIA DE DATOS**]")
+st.markdown(":blue[**PROYECTO INTEGRADOR · CIENCIA DE DATOS**]")
 st.title("¿Se pueden armar perfiles de espectadores con lo que califican, y usarlos para recomendar?",
          anchor="inicio")
 st.markdown(
-    "Tomamos usuarios de MovieLens, cruzamos sus películas con TMDB y buscamos grupos de gente "
-    "que califica parecido. Esta página cuenta, paso a paso, qué decisiones tomamos y por qué "
-    "los datos nos llevaron a ellas. Al final, el lector explora solo."
+    "**El problema.** Queremos saber si se pueden armar perfiles de espectadores a partir de cómo "
+    "califican películas, y usarlos para recomendar. Pero al principio sólo tenemos una tabla de votos: "
+    "quién calificó qué película y con cuántas estrellas, sin géneros, sin fechas de estreno y sin "
+    "ninguna descripción del usuario. Esta página cuenta el recorrido desde esa tabla hasta las "
+    "recomendaciones, y la decisión que tomamos en cada paso."
 )
 
 ev, ari, sil_conjunto = evaluacion_k()
-with st.container(horizontal=True):
-    st.metric("Usuarios en la muestra", h.fmt(act["usuarios"]), border=True)
-    st.metric("Usuarios modelados", h.fmt(act["modelados"]), border=True,
-              help="Los que tienen al menos 150 ratings.")
-    st.metric("Grupos por género y por época", "2 + 2", border=True)
-    st.metric("Perfiles combinados", "4", border=True)
+R = origen["resumen"]
+estaciones = h.tabla_recorrido(R)
+st.markdown("**El recorrido.** Partimos de los votos crudos y llegamos a recomendar películas:")
+grafico(h.grafico_recorrido(estaciones), "Recorrido del proyecto en nueve pasos, de los votos a la recomendación")
 
 
 # ---------------------------------------------------------------------------
-# 1 · Los datos
+# 1 · De dónde salen los datos: del ratings.csv crudo a la tabla silver
 # ---------------------------------------------------------------------------
-seccion(1, "Los datos", "datos", "La actividad de los usuarios abarca dos órdenes de magnitud")
+seccion(1, "Los datos", "datos", "De una tabla de votos a una tabla de usuarios")
+st.markdown(
+    "Para armar perfiles de gusto necesitamos saber, de cada usuario, qué películas califica y cómo, y "
+    "de cada película, de qué género y de qué época es. Ninguna fuente trae todo eso junto: lo fuimos "
+    "juntando con un DAG de Airflow, en cuatro pasos, quedándonos en cada uno con lo que aporta "
+    "información para el objetivo."
+)
+
+st.subheader("Paso 1 · Una tabla pelada de votos", anchor="paso-crudo")
 izq, der = st.columns([3, 2], gap="large")
 with izq:
     st.markdown(
-        f"El pipeline de Airflow elige **{h.fmt(act['usuarios'])} usuarios al azar** de MovieLens 32M entre "
-        f"los que calificaron al menos {act['minimo']} películas, y trae todos sus ratings. "
-        f"Hay de todo: la mediana es **{h.fmt(act['mediana'])}**, pero el más activo llega a "
-        f"**{h.fmt(act['maximo'])}**. Si usáramos los ratings tal cual, unos pocos usuarios pesarían "
-        "decenas de veces más que el resto."
+        "Partimos de **MovieLens**, una colección pública de datos para investigación que reúne "
+        f"calificaciones de usuarios reales desde {R['anio_primer_voto']} hasta {R['anio_ultimo_voto']}. "
+        "Su archivo `ratings.csv` es una tabla pelada: cada fila es un voto de un usuario a una película, "
+        "con la fecha en segundos. No dice qué película es, ni su género, ni su año de estreno: esas "
+        "features hay que ir a buscarlas. Así empieza el archivo:"
     )
+    st.table(origen["crudo"].astype({"rating": str}).set_index("userId"))
 with der:
-    decision(f"Recortar a **500 ratings** por usuario, al azar ({h.fmt(act['con_tope'])} usuarios superan "
-             "el tope), y modelar sólo a quienes tienen **150 o más**.")
-grafico(h.grafico_histograma(silver), "Histograma de ratings por usuario en escala logarítmica")
-with st.expander("Ver los números", icon=":material/table_chart:"):
-    st.dataframe(h.tabla_histograma(silver), hide_index=True, alt="Usuarios por intervalo de ratings")
+    with st.container(horizontal=True):
+        st.metric("Votos", h.fmt(R["ratings_total"]), border=True)
+        st.metric("Usuarios", h.fmt(R["usuarios_total"]), border=True)
+        st.metric("Películas", h.fmt(R["peliculas_total"]), border=True)
 
-
-# ---------------------------------------------------------------------------
-# 2 · Lo que se pierde
-# ---------------------------------------------------------------------------
-etapas = T["etapas"]
-seccion(2, "Lo que se pierde", "pipeline", "Cada etapa del pipeline recorta ratings, no usuarios")
+st.subheader("Paso 2 · A quién miramos", anchor="paso-muestra")
 izq, der = st.columns([3, 2], gap="large")
 with izq:
     st.markdown(
-        "El DAG tiene dos fuentes de pérdida. El **tope de 500** submuestrea a los usuarios más activos. "
-        "El **cruce con TMDB** sólo conoce el género de las 10.000 películas más vistas de la muestra: los "
-        "ratings de las demás no entran al cálculo por género. Las estadísticas generales de cada usuario "
-        "se calculan antes del cruce, así que nadie desaparece por culpa de TMDB."
+        "Para describir el gusto de alguien hacen falta muchos votos suyos, así que agrupamos los ratings "
+        "por usuario y pedimos un mínimo. Entre los que lo cumplen, elegimos usuarios al azar."
     )
 with der:
-    decision("Consultar **10.000 películas** en TMDB (en la Entrega 1 eran 1.000) y calcular las "
-             "estadísticas del usuario **antes** del cruce.")
-grafico(h.grafico_etapas(etapas), "Ratings que quedan después de cada etapa del pipeline")
+    decision(f"Usuarios con **100 ratings o más**, **{h.fmt(R['usuarios_muestra'])} al azar** "
+             f"(random_state 42) y un **tope de 500** ratings por usuario. El modelo, después, pide "
+             f"**{h.MIN_RATINGS}**.")
+grafico(h.grafico_muestra_vs_poblacion(origen["poblacion"], silver),
+        "Histogramas superpuestos de ratings por usuario: MovieLens y la muestra")
 with st.expander("Ver los números", icon=":material/table_chart:"):
-    st.dataframe(etapas.drop(columns="orden"), hide_index=True, alt="Ratings y usuarios por etapa",
-                 column_config={"pct_perdido": st.column_config.NumberColumn("% perdido", format="percent")})
+    st.dataframe(T["poblacion"], hide_index=True, alt="Usuarios por intervalo de ratings")
+
+st.subheader("Paso 3 · Qué son esas películas: TMDB", anchor="paso-tmdb")
+izq, der = st.columns([3, 2], gap="large")
+with izq:
+    st.markdown(
+        "Un `movieId` no dice nada. Para saber qué tipo de películas califica cada usuario buscamos en "
+        "TMDB las características de las películas que aparecen en sus ratings: título, fecha de estreno "
+        "y géneros. El puente es `links.csv`, que traduce el `movieId` de MovieLens al id de TMDB."
+    )
+with der:
+    decision(f"Consultar las **{h.fmt(R['peliculas_consultadas'])} películas más vistas** de la muestra, "
+             "no todas.")
+c1, c2 = st.columns([3, 2], gap="large")
+with c1:
+    grafico(h.grafico_cobertura(origen["cobertura"], R), "Ratings cubiertos según cuántas películas se consultan")
+with c2:
+    st.space("medium")
+    st.caption("Las mismas filas del paso 1, después del cruce con TMDB:")
+    st.table(h.tabla_cruda_con_tmdb(origen["crudo"], peliculas)[["movieId", "título", "estreno", "géneros"]]
+             .set_index("movieId"))
+
+st.subheader("Paso 4 · De votos a usuarios: la tabla silver", anchor="paso-silver")
+izq, der = st.columns([3, 2], gap="large")
+with izq:
+    st.markdown(
+        f"Con los votos y las películas, el DAG resume a cada usuario en una fila: cuánto califica, su "
+        f"promedio, su promedio en cada género y qué parte de lo que mira es de cada época. El resultado es "
+        f"`usuarios_generos.csv`: **{h.fmt(len(silver))} filas y {silver.shape[1]} columnas**."
+    )
+with der:
+    decision("Calcular las estadísticas generales del usuario **antes** del cruce con TMDB, para que nadie "
+             "pierda votos por una película que TMDB no tiene.")
+st.dataframe(silver.head(5), hide_index=True, alt="Primeras filas de la tabla silver")
 
 
 # ---------------------------------------------------------------------------
 # 3 · La trampa de los pocos ratings
 # ---------------------------------------------------------------------------
-seccion(3, "La trampa de los pocos ratings", "trampa",
+seccion(2, "La trampa de los pocos ratings", "trampa",
         "Un género visto una sola vez no dice nada del gusto")
 izq, der = st.columns([3, 2], gap="large")
 with izq:
@@ -196,7 +251,7 @@ with der:
 # ---------------------------------------------------------------------------
 # 4 · Qué entra al modelo
 # ---------------------------------------------------------------------------
-seccion(4, "Qué entra al modelo", "variables", "Entran gustos por género y épocas del historial; nada más")
+seccion(3, "Qué entra al modelo", "variables", "Entran gustos por género y épocas del historial; nada más")
 st.markdown(
     "El silver tiene 54 columnas por usuario. Al modelo entran sólo las que describen **qué le gusta** "
     "(afinidad por género) y **qué mira** (épocas del historial). Todo lo que mide actividad, fechas o "
@@ -208,7 +263,7 @@ st.table(T["variables"].set_index("Variable"))
 # ---------------------------------------------------------------------------
 # 5 · Menos dimensiones
 # ---------------------------------------------------------------------------
-seccion(5, "Menos dimensiones", "pca", "Dos PCA separadas: una para géneros, otra para épocas")
+seccion(4, "Menos dimensiones", "pca", "Dos PCA separadas: una para géneros, otra para épocas")
 izq, der = st.columns([3, 2], gap="large")
 with izq:
     st.markdown(
@@ -223,6 +278,12 @@ with izq:
     grafico(h.grafico_varianza(T["varianza"]), "Varianza acumulada de las dos PCA")
 with der:
     grafico(h.grafico_cargas(T["cargas"]), "Cargas de la primera componente de géneros")
+st.markdown(
+    "Con dos ejes ya se ve la estructura: cada género tiene su zona. Elegí un género abajo para ver dónde "
+    "están los usuarios a los que más les gusta."
+)
+grafico(h.grafico_fanaticos(usuarios),
+        "Mapa de calor del espacio de géneros con los usuarios de cada género resaltados")
 with st.expander("Ver los números", icon=":material/table_chart:"):
     c1, c2 = st.columns(2)
     c1.dataframe(T["varianza"], hide_index=True, alt="Varianza acumulada por componente",
@@ -234,7 +295,7 @@ with st.expander("Ver los números", icon=":material/table_chart:"):
 # 6 · Cuántos grupos
 # ---------------------------------------------------------------------------
 codo, silueta = h.grafico_codo(ev)
-seccion(6, "Cuántos grupos", "grupos", "Dos grupos por bloque, y cada bloque por su lado")
+seccion(5, "Cuántos grupos", "grupos", "Dos grupos por bloque, y cada bloque por su lado")
 izq, der = st.columns([3, 2], gap="large")
 with izq:
     st.markdown(
@@ -268,7 +329,7 @@ perfil_g, orden_g = h.tabla_perfil_generos(usuarios)
 perfil_e = h.tabla_perfil_epocas(usuarios)
 rho, medianas = h.pregunta_actividad(usuarios, modelos)
 
-seccion(7, "Los perfiles", "perfiles", "Cuatro perfiles, armados con dos preguntas distintas")
+seccion(6, "Los perfiles", "perfiles", "Cuatro perfiles, armados con dos preguntas distintas")
 st.markdown(
     "Un modelo responde **qué géneros le gustan más que su propio promedio**; el otro, **de qué época es "
     "lo que mira**. Las dos respuestas no dependen una de la otra, así que cada combinación es un perfil."
@@ -291,13 +352,14 @@ with izq:
 with der:
     with st.container(border=True):
         st.markdown(
-            ":red[:material/search: **Lo que encontramos**]  \n"
+            ":blue[:material/search: **Lo que encontramos**]  \n"
             f"La actividad casi no se relaciona con los ejes del modelo (|ρ| ≤ {h.dec(rho.abs().max(), 2)}). "
             f"Hay un matiz: el grupo de drama y crimen califica algo más "
             f"(mediana {h.fmt(medianas[h.GENEROS_GRUPOS[1]])} contra "
-            f"{h.fmt(medianas[h.GENEROS_GRUPOS[0]])}), pero las cajas se superponen casi por completo."
+            f"{h.fmt(medianas[h.GENEROS_GRUPOS[0]])}), pero las nubes de los cuatro perfiles se superponen casi por completo."
         )
-grafico(h.grafico_actividad(usuarios, rho, medianas), "Ratings por usuario en cada grupo")
+grafico(h.grafico_actividad_perfiles(usuarios, rho),
+        "Nube de usuarios por rating promedio y cantidad de ratings, con reparto por perfil")
 with st.expander("Ver los números", icon=":material/table_chart:"):
     c1, c2, c3 = st.columns(3)
     c1.dataframe(cruce, hide_index=True, alt="Usuarios por perfil combinado")
@@ -308,7 +370,7 @@ with st.expander("Ver los números", icon=":material/table_chart:"):
 # ---------------------------------------------------------------------------
 # 8 · Explorá (la copa)
 # ---------------------------------------------------------------------------
-seccion(8, "Tu turno", "explora", "Explorá los usuarios")
+seccion(7, "Tu turno", "explora", "Explorá los usuarios")
 st.markdown(
     "Cada punto es un usuario. **Arrastrá** sobre la nube para marcar un grupo de usuarios y ver su perfil "
     "a la derecha; **hacé clic en la leyenda** para resaltar un grupo; pasá el mouse por un punto para ver "
@@ -336,7 +398,7 @@ copa()
 # ---------------------------------------------------------------------------
 # 9 · Un usuario y sus recomendaciones
 # ---------------------------------------------------------------------------
-seccion(9, "Tu turno", "recomendador", "Un usuario, sus vecinos y sus películas")
+seccion(8, "Tu turno", "recomendador", "Un usuario, sus vecinos y sus películas")
 st.markdown(
     "Elegí un usuario. Buscamos a los más parecidos en los dos espacios (con el mismo peso) y le "
     "recomendamos películas que esos vecinos calificaron bien y que el usuario todavía no calificó."
