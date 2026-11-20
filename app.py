@@ -4,10 +4,17 @@ Una sola página que se recorre de arriba hacia abajo: primero la historia del
 proyecto (el tallo de la copa de martini) y al final la parte para explorar
 (la copa). El índice del costado salta a cada sección.
 """
+import importlib
+
 import pandas as pd
 import streamlit as st
 
 import historia as h
+
+# Streamlit Cloud, al actualizar la app, vuelve a correr este archivo pero puede seguir usando la
+# versión vieja de historia.py que tenía en memoria (pasó al cambiar tabla_umbral). Recargarlo en
+# cada corrida cuesta milisegundos y asegura que app.py e historia.py sean siempre de la misma versión.
+h = importlib.reload(h)
 
 st.set_page_config(page_title="Perfiles de cine", page_icon=":material/movie:", layout="wide")
 
