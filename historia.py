@@ -578,6 +578,24 @@ def grafico_fanaticos(usuarios):
 # ---------------------------------------------------------------------------
 # 6 · Cuántos grupos
 # ---------------------------------------------------------------------------
+# colores de la sección «Cuántos grupos», validados con validate_palette.js de la skill dataviz
+SENALES = {"Dispersión que queda (codo)": QUEMADO, "Separación (silhouette)": CHARTREUSE,
+           "Estabilidad (remuestreo)": EPOCA_RECIENTE}
+COLORES_K = [EPOCA_RECIENTE, CHARTREUSE, QUEMADO, EPOCA_CLASICA, "#1f9a8a"]
+
+
+def estabilidad(Z, k, repeticiones=20):
+    """ARI medio entre el K-means con todos los usuarios y K-means entrenados con el 80 % al azar."""
+    rng = np.random.default_rng(SEMILLA)
+    completo = KMeans(n_clusters=k, random_state=SEMILLA, n_init=10).fit_predict(Z)
+    aris = []
+    for _ in range(repeticiones):
+        idx = rng.choice(len(Z), size=int(0.8 * len(Z)), replace=False)
+        parcial = KMeans(n_clusters=k, random_state=int(rng.integers(1_000_000)), n_init=10).fit(Z[idx]).predict(Z)
+        aris.append(adjusted_rand_score(completo, parcial))
+    return float(np.mean(aris))
+
+
 def evaluar_k(modelos):
     _, zg, zd = espacios(modelos)
     filas = []
@@ -587,7 +605,8 @@ def evaluar_k(modelos):
             km = KMeans(n_clusters=k, random_state=SEMILLA, n_init=10).fit(Z)
             base = km.inertia_ if k == 1 else base
             filas.append({"bloque": bloque, "k": k, "inercia": km.inertia_ / base,
-                          "silhouette": silhouette_score(Z, km.labels_) if k > 1 else np.nan})
+                          "silhouette": silhouette_score(Z, km.labels_) if k > 1 else np.nan,
+                          "estabilidad": estabilidad(Z, k) if k > 1 else np.nan})
     evaluacion = pd.DataFrame(filas)
     # modelo conjunto: las dos PCA juntas, cada bloque con el mismo peso
     zc = np.hstack([zg / np.sqrt((zg ** 2).sum(1).mean()), zd / np.sqrt((zd ** 2).sum(1).mean())])
@@ -600,34 +619,104 @@ def evaluar_k(modelos):
     return evaluacion, ari, silhouette_score(zc, conjunto)
 
 
-def grafico_codo(evaluacion):
-    color = alt.Color("bloque:N", title=None, scale=alt.Scale(
-        domain=["Géneros", "Épocas"], range=[QUEMADO, ELECTRICO]), legend=alt.Legend(orient="top-right"))
-    x = alt.X("k:O", title="Cantidad de grupos (k)", axis=alt.Axis(labelAngle=0))
-    codo = alt.Chart(evaluacion).mark_line(point=True).encode(
-        x=x, y=alt.Y("inercia:Q", title="Inercia (k = 1 vale 100 %)", axis=alt.Axis(format="%"),
-                     scale=alt.Scale(domain=[0, 1])),
-        color=color, tooltip=["bloque:N", "k:O", alt.Tooltip("inercia:Q", format=".0%")]
-    ).properties(height=360, title=titulo("El codo de las épocas está en k = 2",
-                                          "Cuánta dispersión queda dentro de los grupos (menos es mejor)."))
-    sil = evaluacion.dropna()
-    k2 = sil[sil["k"] == 2]
-    lineas = alt.Chart(sil).mark_line(point=True).encode(
-        x=x, y=alt.Y("silhouette:Q", title="Silhouette", scale=alt.Scale(domain=[0, 0.5])),
-        color=color, tooltip=["bloque:N", "k:O", alt.Tooltip("silhouette:Q", format=".3f")])
-    marca = alt.Chart(k2).mark_point(size=200, filled=False, strokeWidth=2).encode(
-        x=x, y="silhouette:Q", color=color)
-    texto = alt.Chart(k2.assign(t=[dec(v, 3) for v in k2["silhouette"]])).mark_text(
-        dx=14, align="left", fontWeight="bold").encode(x=x, y="silhouette:Q", text="t:N", color=color)
-    silueta = (lineas + marca + texto).properties(height=360, title=titulo(
-        "Con k = 2 la separación es la más alta en los dos bloques",
-        "Silhouette: qué tan cerca está cada usuario de su grupo y lejos del otro."))
-    return codo, silueta
+def particiones_generos(modelos):
+    """Grupo de cada usuario en el espacio de géneros para k de 2 a 5 (para el gráfico de elegir k)."""
+    _, zg, _ = espacios(modelos)
+    partes = []
+    for k in range(2, 6):
+        etiquetas = KMeans(n_clusters=k, random_state=SEMILLA, n_init=10).fit_predict(zg)
+        partes.append(pd.DataFrame({"k": k, "x": zg[:, 0], "y": zg[:, 1],
+                                    "grupo": [f"Grupo {g + 1}" for g in etiquetas]}))
+    return pd.concat(partes, ignore_index=True)
+
+
+def silhouette_epocas_por_componentes(modelos):
+    """Silhouette de épocas guardando 2 o 3 componentes: el 80 % de la PCA queda justo en el borde."""
+    D = modelos.entrenamiento
+    X = modelos.decadas["preparar"][:-1].transform(D)   # escalado, antes de la PCA
+    varianza = np.cumsum(PCA(random_state=SEMILLA).fit(X).explained_variance_ratio_)
+    salida = {}
+    for k in (2, 3):
+        Z = PCA(n_components=k, random_state=SEMILLA).fit_transform(X)
+        etiquetas = KMeans(n_clusters=2, random_state=SEMILLA, n_init=10).fit_predict(Z)
+        salida[k] = {"varianza": varianza[k - 1], "silhouette": silhouette_score(Z, etiquetas)}
+    return salida
+
+
+def grafico_senales(evaluacion):
+    """A · Las tres señales por bloque, en un mismo eje de 0 a 1, con k = 2 marcado."""
+    largo = evaluacion.dropna().melt(id_vars=["bloque", "k"], value_vars=["inercia", "silhouette", "estabilidad"],
+                                     var_name="medida", value_name="valor")
+    largo["medida"] = largo["medida"].map({"inercia": "Dispersión que queda (codo)",
+                                           "silhouette": "Separación (silhouette)",
+                                           "estabilidad": "Estabilidad (remuestreo)"})
+    color = alt.Color("medida:N", title=None, scale=alt.Scale(domain=list(SENALES), range=list(SENALES.values())),
+                      legend=alt.Legend(orient="top", labelLimit=0, columnPadding=36, symbolOffset=6))
+    escala_x = alt.Scale(domain=[1.6, 7.2], nice=False)
+    x = alt.X("k:Q", title="Cantidad de grupos (k)", scale=escala_x,
+              axis=alt.Axis(values=[2, 3, 4, 5, 6], format="d", grid=False))
+    y = alt.Y("valor:Q", title=None, scale=alt.Scale(domain=[0, 1]),
+              axis=alt.Axis(values=[0, 0.25, 0.5, 0.75, 1], gridColor="#e3e4e8", domain=False, ticks=False))
+
+    def panel(bloque):
+        datos = largo[largo["bloque"] == bloque]
+        banda = alt.Chart(pd.DataFrame({"a": [1.75], "b": [2.25]})).mark_rect(color="#eef0fb").encode(
+            x=alt.X("a:Q", scale=escala_x), x2="b:Q")
+        rotulo_k = alt.Chart(pd.DataFrame({"k": [2]})).mark_text(
+            text="k elegido", dy=-4, fontSize=11, color=TEXTO, baseline="bottom").encode(x="k:Q", y=alt.datum(1))
+        lineas = alt.Chart(datos).mark_line(strokeWidth=2).encode(x=x, y=y, color=color)
+        puntos = alt.Chart(datos).mark_circle(size=70, opacity=1, stroke=FONDO, strokeWidth=2).encode(
+            x=x, y=y, color=color, tooltip=[alt.Tooltip("medida:N", title="Medida"), "k:Q",
+                                            alt.Tooltip("valor:Q", title="Valor", format=".3f")])
+        # nombres al final de cada línea; si dos quedan muy cerca, se separan unos píxeles
+        fin = datos[datos["k"] == 6].sort_values("valor").assign(t=lambda d: d["medida"].str.split(" ").str[0])
+        cerca = fin["valor"].diff().fillna(1).abs() < 0.07
+        fin["y_rotulo"] = (fin["valor"] + np.where(cerca, 0.035, 0)
+                           - np.where(cerca.shift(-1, fill_value=False), 0.035, 0))
+        rotulos = alt.Chart(fin).mark_text(align="left", dx=8, fontSize=11, color=TEXTO).encode(
+            x=x, y=alt.Y("y_rotulo:Q", scale=alt.Scale(domain=[0, 1])), text="t:N")
+        return (banda + rotulo_k + lineas + puntos + rotulos).properties(width=330, height=250, title=bloque)
+
+    est = evaluacion.set_index(["bloque", "k"])["estabilidad"]
+    return alt.hconcat(panel("Géneros"), panel("Épocas"), spacing=40).properties(title=titulo(
+        "Con dos grupos las tres señales coinciden, en los dos bloques",
+        [f"Géneros: k = 2 es el más estable ({dec(est['Géneros', 2], 2)}) y la estabilidad cae con cada grupo más. "
+         f"Épocas: el codo está en 2 y la estabilidad es {dec(est['Épocas', 2], 2)}.",
+         "La dispersión siempre baja al sumar grupos: lo que importa es dónde deja de bajar mucho (el codo)."])
+    ).configure_view(stroke=None)
+
+
+def grafico_elegir_k(particiones, evaluacion):
+    """B · Botones para elegir k: la nube de géneros se repinta y las tres medidas resaltan ese k."""
+    k_sel = alt.param(name="k_sel", value=2, bind=alt.binding_radio(options=[2, 3, 4, 5], name="Cantidad de grupos: "))
+    nube = alt.Chart(particiones).transform_filter("datum.k == k_sel").mark_point(
+        filled=False, size=14, strokeWidth=0.9, opacity=0.6).encode(
+        x=alt.X("x:Q", title="Eje 1 de géneros", axis=alt.Axis(grid=False)),
+        y=alt.Y("y:Q", title="Eje 2 de géneros", axis=alt.Axis(grid=False)),
+        color=alt.Color("grupo:N", title=None, legend=None,
+                        scale=alt.Scale(domain=[f"Grupo {i}" for i in range(1, 6)], range=COLORES_K)),
+    ).add_params(k_sel).properties(width=380, height=300)
+    m = evaluacion[(evaluacion["bloque"] == "Géneros") & evaluacion["k"].between(2, 5)]
+    paneles = []
+    for columna, nombre in [("inercia", "Dispersión que queda (codo)"), ("silhouette", "Separación (silhouette)"),
+                            ("estabilidad", "Estabilidad (remuestreo)")]:
+        paneles.append(alt.Chart(m).mark_bar(size=10, cornerRadiusEnd=3).encode(
+            x=alt.X(f"{columna}:Q", title=None, scale=alt.Scale(domain=[0, 1]),
+                    axis=alt.Axis(values=[0, 0.5, 1], grid=False)),
+            y=alt.Y("k:O", title="k", axis=alt.Axis(labelAngle=0)),
+            color=alt.condition("datum.k == k_sel", alt.value(EPOCA_RECIENTE), alt.value(APAGADO)),
+            tooltip=["k:O", alt.Tooltip(f"{columna}:Q", title=nombre, format=".3f")],
+        ).properties(width=170, height=72, title=alt.Title(nombre, fontSize=11, anchor="start")))
+    return alt.hconcat(nube, alt.vconcat(*paneles, spacing=6), spacing=30).properties(title=titulo(
+        "Con más de dos grupos, la nube se corta sin ningún hueco que lo justifique",
+        "Elegí la cantidad de grupos con los botones de abajo: la nube del espacio de géneros se repinta.")
+    ).configure_view(stroke=None)
 
 
 def grafico_ari(ari):
     t = ari.assign(texto=[dec(v, 3) for v in ari["ari"]])
-    y = alt.Y("comparacion:N", title=None, sort=list(t["comparacion"]))
+    y = alt.Y("comparacion:N", title=None, sort=list(t["comparacion"]),
+              axis=alt.Axis(labelLimit=0, minExtent=150))
     barras = alt.Chart(t).mark_bar(cornerRadiusEnd=3).encode(
         x=alt.X("ari:Q", title="Coincidencia entre agrupamientos (ARI, 1 = idénticos)",
                 scale=alt.Scale(domain=[0, 1])), y=y,

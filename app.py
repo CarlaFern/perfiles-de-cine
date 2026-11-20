@@ -48,9 +48,14 @@ def espacios():
     return h.espacios(modelos)
 
 
-@st.cache_data(show_spinner="Probando de 1 a 6 grupos…")
+@st.cache_data(show_spinner="Probando de 1 a 6 grupos y midiendo su estabilidad…")
 def evaluacion_k():
     return h.evaluar_k(modelos)
+
+
+@st.cache_data
+def particiones_k():
+    return h.particiones_generos(modelos), h.silhouette_epocas_por_componentes(modelos)
 
 
 @st.cache_data
@@ -312,30 +317,36 @@ with st.expander("Ver los números", icon=":material/table_chart:"):
 # ---------------------------------------------------------------------------
 # 6 · Cuántos grupos
 # ---------------------------------------------------------------------------
-codo, silueta = h.grafico_codo(ev)
+particiones, epocas_por_comp = particiones_k()
 seccion(5, "Cuántos grupos", "grupos", "Dos grupos por bloque, y cada bloque por su lado")
 izq, der = st.columns([3, 2], gap="large")
 with izq:
     st.markdown(
-        "Probamos K-means de 1 a 6 grupos en cada espacio. El codo muestra cuánto se gana con cada grupo "
-        "más; la silhouette, qué tan separados quedan. Después probamos un único modelo con los dos "
-        "bloques juntos, para ver si convenía no separarlos."
+        "Probamos K-means de 1 a 6 grupos en cada espacio y miramos tres señales. El **codo**: cuánta "
+        "dispersión queda dentro de los grupos. La **silhouette**: qué tan separados quedan. Y la "
+        "**estabilidad**: si entrenamos con el 80 % de los usuarios al azar, 20 veces, ¿salen los mismos "
+        "grupos? Después probamos un único modelo con los dos bloques juntos, para ver si convenía no "
+        "separarlos."
     )
 with der:
     decision("**k = 2** en géneros y **k = 2** en épocas. Cada usuario queda con dos etiquetas, que "
              "cruzadas dan cuatro perfiles.")
-c1, c2 = st.columns(2, gap="large")
-with c1:
-    grafico(codo, "Curva del codo para géneros y épocas")
-with c2:
-    grafico(silueta, "Silhouette según la cantidad de grupos")
+grafico(h.grafico_senales(ev), "Codo, silhouette y estabilidad según la cantidad de grupos, por bloque")
+grafico(h.grafico_elegir_k(particiones, ev),
+        "Nube del espacio de géneros partida en 2 a 5 grupos, con un control para elegir la cantidad")
 grafico(h.grafico_ari(ari), "Coincidencia del modelo conjunto con los modelos separados")
 sil_generos = ev[(ev["bloque"] == "Géneros") & (ev["k"] == 2)]["silhouette"].iloc[0]
 st.caption(f"La separación en géneros es modesta (silhouette {h.dec(sil_generos, 3)}): los grupos son "
            f"tendencias, no categorías cerradas. El modelo conjunto tiene silhouette {h.dec(sil_conjunto, 3)}.")
+e2, e3 = epocas_por_comp[2], epocas_por_comp[3]
+st.caption(f"En épocas, la silhouette depende de cuántas componentes guarde la PCA: con 3 ("
+           f"{h.dec(e3['varianza'] * 100, 1)} % de la varianza) es {h.dec(e3['silhouette'], 3)} y con 2 ("
+           f"{h.dec(e2['varianza'] * 100, 1)} %) sube a {h.dec(e2['silhouette'], 3)}. Las 2 componentes quedan "
+           "justo en el borde del 80 % que pedimos, así que según la muestra se guardan 2 o 3; los grupos son "
+           "los mismos en los dos casos (ver comparacion_5000_20000.ipynb).")
 with st.expander("Ver los números", icon=":material/table_chart:"):
     c1, c2 = st.columns(2)
-    c1.dataframe(ev.round(3), hide_index=True, alt="Inercia y silhouette por k")
+    c1.dataframe(ev.round(3), hide_index=True, alt="Inercia, silhouette y estabilidad por k")
     c2.dataframe(ari.round(4), hide_index=True, alt="ARI del modelo conjunto")
 
 
