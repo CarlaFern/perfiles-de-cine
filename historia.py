@@ -36,7 +36,11 @@ GRIS_VIA, GRIS_NOTA = "#e3e4e8", "#80818f"
 GENEROS_GRUPOS = ["Animación, familia y aventura", "Drama, crimen e histórico"]
 DECADAS_GRUPOS = ["Cine de 2000–2010", "Cine noventero y clásico"]
 COLOR_GENERO = alt.Scale(domain=GENEROS_GRUPOS, range=[CHARTREUSE, QUEMADO])
-COLOR_DECADA = alt.Scale(domain=DECADAS_GRUPOS, range=[ELECTRICO, NAVY])
+# los dos grupos de época: electric blue y lavanda. Validado con validate_palette.js de la skill
+# dataviz (dusty navy junto a electric blue no se distinguían: diferencia 11,6, mínimo 15).
+# El lavanda tiene poco contraste con el fondo blanco: va siempre con etiqueta o leyenda.
+EPOCA_RECIENTE, EPOCA_CLASICA = "#3b47c9", "#9aa2ec"
+COLOR_DECADA = alt.Scale(domain=DECADAS_GRUPOS, range=[EPOCA_RECIENTE, EPOCA_CLASICA])
 
 NOMBRE_EPOCA = {
     "prop_antes_1980": "Antes de 1980", "prop_1980s": "1980s",
@@ -576,18 +580,53 @@ def tabla_cruce(usuarios):
 
 
 def grafico_cruce(largo, p, v):
-    largo = largo.assign(t=[f"{fmt(u)} · {dec(q * 100)} %" for u, q in zip(largo["usuarios"], largo["pct"])])
-    base = alt.Chart(largo).encode(
-        x=alt.X("nombre_decada:N", title="Grupo por época", sort=DECADAS_GRUPOS,
-                axis=alt.Axis(labelAngle=0, orient="top")),
-        y=alt.Y("nombre_genero:N", title="Grupo por género", sort=GENEROS_GRUPOS,
-                axis=alt.Axis(labelLimit=220)))
-    celdas = base.mark_rect(cornerRadius=6, stroke=FONDO, strokeWidth=3).encode(
-        color=alt.Color("usuarios:Q", legend=None, scale=alt.Scale(range=["#7c7eb0", NAVY])))
-    texto = base.mark_text(fontSize=15, fontWeight="bold", color="#ffffff").encode(text="t:N")
-    return (celdas + texto).properties(height=330, title=titulo(
-        "Los cuatro perfiles: los dos grupos de género se reparten mitad y mitad entre las épocas",
-        f"Test χ²: p = {dec(p, 2)}, V de Cramér = {dec(v, 3)}. Género y época son dimensiones distintas."))
+    """Mosaico: el ancho de cada columna es el tamaño del grupo de género y la altura de cada
+    bloque, su reparto entre épocas. Si género y época son independientes, los cortes quedan a la
+    misma altura en las dos columnas."""
+    t = largo.copy()
+    total = t["usuarios"].sum()
+    t["total_genero"] = t.groupby("nombre_genero")["usuarios"].transform("sum")
+    t["parte"] = t["usuarios"] / t["total_genero"]
+    t["orden"] = t["nombre_decada"].map({g: i for i, g in enumerate(DECADAS_GRUPOS)})
+    t = t.sort_values(["nombre_genero", "orden"])
+    t["y1"] = t.groupby("nombre_genero")["parte"].cumsum()
+    t["y0"] = t["y1"] - t["parte"]
+    anchos = t.groupby("nombre_genero")["usuarios"].sum().reindex(GENEROS_GRUPOS) / total
+    x1 = anchos.cumsum()
+    t["x0"] = t["nombre_genero"].map(x1 - anchos)
+    t["x1"] = t["nombre_genero"].map(x1)
+    t["xm"] = (t["x0"] + t["x1"]) / 2
+    t["ym"] = (t["y0"] + t["y1"]) / 2
+    t["bloque"] = [f"{fmt(u)} usuarios · {dec(q * 100, 0)} %" for u, q in zip(t["usuarios"], t["parte"])]
+    # texto dentro del bloque: blanco sobre el azul oscuro, tinta sobre el lavanda
+    t["tinta"] = t["nombre_decada"].map({DECADAS_GRUPOS[0]: "#ffffff", DECADAS_GRUPOS[1]: TEXTO})
+    cabeceras = t.drop_duplicates("nombre_genero").assign(
+        cabecera=lambda d: [f"{g} · {dec(anchos[g] * 100, 0)} % de los usuarios" for g in d["nombre_genero"]])
+    esperado = t.groupby("nombre_decada")["usuarios"].sum()[DECADAS_GRUPOS[0]] / total
+
+    sx = alt.Scale(domain=[0, 1], nice=False)
+    sy = alt.Scale(domain=[0, 1.12], nice=False)
+    bloques = alt.Chart(t).mark_rect(cornerRadius=4, stroke=FONDO, strokeWidth=2).encode(
+        x=alt.X("x0:Q", scale=sx, axis=None), x2="x1:Q",
+        y=alt.Y("y0:Q", scale=sy, title=None,
+                axis=alt.Axis(format="%", values=[0, 0.5, 1], grid=False, domain=False)),
+        y2="y1:Q",
+        color=alt.Color("nombre_decada:N", title=None, scale=COLOR_DECADA, sort=DECADAS_GRUPOS,
+                        legend=alt.Legend(orient="top", symbolType="square", labelLimit=0)),
+        tooltip=[alt.Tooltip("nombre_genero:N", title="Grupo por género"),
+                 alt.Tooltip("nombre_decada:N", title="Grupo por época"),
+                 alt.Tooltip("usuarios:Q", title="Usuarios", format=","),
+                 alt.Tooltip("parte:Q", title="% del grupo de género", format=".1%")])
+    rotulos = alt.Chart(t).mark_text(fontSize=12, fontWeight=600).encode(
+        x="xm:Q", y="ym:Q", text="bloque:N", color=alt.Color("tinta:N", scale=None))
+    cabecera = alt.Chart(cabeceras).mark_text(fontSize=12, color=GRIS, baseline="bottom").encode(
+        x="xm:Q", y=alt.datum(1.1), text="cabecera:N")
+    corte = alt.Chart(pd.DataFrame({"y": [esperado]})).mark_rule(color=TEXTO, strokeWidth=1.5).encode(y="y:Q")
+    return (bloques + rotulos + cabecera + corte).properties(height=360, title=titulo(
+        "Los dos grupos de género se reparten igual entre las épocas",
+        [f"El ancho de cada columna es el tamaño del grupo; la línea, el reparto de todos los usuarios "
+         f"({dec(esperado * 100, 0)} %). Los cortes coinciden.",
+         f"Test χ²: p = {dec(p, 2)} · V de Cramér = {dec(v, 3)}: género y época son dimensiones distintas."]))
 
 
 def tabla_perfil_generos(usuarios):
