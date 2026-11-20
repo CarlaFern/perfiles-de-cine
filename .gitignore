@@ -1,0 +1,7 @@
+# Skills y configuración local de los asistentes (no son parte de la app)
+.agents/
+.claude/
+skills-lock.json
+
+# Python
+__pycache__/
