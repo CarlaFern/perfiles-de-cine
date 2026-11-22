@@ -1180,7 +1180,7 @@ def grafico_top(rec, cantidad, compacto=False):
 
     x = alt.X(
         "apoyo:Q",
-        title=None if compacto else
+        title="Porcentaje (%)" if compacto else
               f"Apoyo: parte de sus {cantidad} vecinos a los que les gustó (pesando más a los más parecidos)",
         scale=alt.Scale(domain=[0, 1]),
         axis=alt.Axis(format="%", values=[0, 0.25, 0.5, 0.75, 1])
@@ -1248,24 +1248,30 @@ def peliculas_favoritas(ratings, peliculas, usuario, n=N_RECOMENDACIONES):
 
 
 def grafico_favoritas(favoritas):
-    """Gráfico de las películas mejor valoradas por el usuario."""
+    """Películas mejor calificadas, expresadas como porcentaje de 5 estrellas."""
 
-    t = favoritas.assign(
-        nombre=[
-            f"{i}. {pel} ({str(fecha)[:4]})"
-            for i, (pel, fecha) in enumerate(
-                zip(favoritas["titulo"], favoritas["fecha_estreno"]), 1
-            )
-        ],
-        generos=[
-            " · ".join(GENERO_ES.get(g, g) for g in str(x).split("|"))
-            if pd.notna(x) else ""
-            for x in favoritas["genres"]
-        ],
-        etiqueta=[
-            f"{dec(v, 1)} ★" for v in favoritas["rating"]
-        ]
-    )
+    t = favoritas.copy()
+
+    t["nombre"] = [
+        f"{i}. {pel} ({str(fecha)[:4] if pd.notna(fecha) else 's/f'})"
+        for i, (pel, fecha) in enumerate(
+            zip(t["titulo"], t["fecha_estreno"]), 1
+        )
+    ]
+
+    t["generos"] = [
+        " · ".join(GENERO_ES.get(g, g) for g in str(x).split("|"))
+        if pd.notna(x) else ""
+        for x in t["genres"]
+    ]
+
+    # Normalizamos las estrellas para que el eje vaya de 0 a 100 %.
+    # 5 estrellas = 100 %, 4 estrellas = 80 %, etc.
+    t["porcentaje"] = t["rating"] / 5.0
+
+    t["etiqueta"] = [
+        f"{dec(v, 1)} ★" for v in t["rating"]
+    ]
 
     y = alt.Y(
         "nombre:N",
@@ -1275,10 +1281,13 @@ def grafico_favoritas(favoritas):
     )
 
     x = alt.X(
-        "rating:Q",
-        title=None,
-        scale=alt.Scale(domain=[0, 5]),
-        axis=alt.Axis(values=[0, 1, 2, 3, 4, 5])
+        "porcentaje:Q",
+        title="Porcentaje (%)",
+        scale=alt.Scale(domain=[0, 1]),
+        axis=alt.Axis(
+            format="%",
+            values=[0, 0.25, 0.5, 0.75, 1]
+        )
     )
 
     barras = alt.Chart(t).mark_bar(
@@ -1286,12 +1295,21 @@ def grafico_favoritas(favoritas):
         cornerRadiusEnd=4,
         color=QUEMADO
     ).encode(
-        x=x, y=y,
+        x=x,
+        y=y,
         tooltip=[
             alt.Tooltip("titulo:N", title="Película"),
             alt.Tooltip("generos:N", title="Géneros"),
-            alt.Tooltip("rating:Q",
-                        title="Calificación del usuario", format=".1f")
+            alt.Tooltip(
+                "rating:Q",
+                title="Calificación (estrellas)",
+                format=".1f"
+            ),
+            alt.Tooltip(
+                "porcentaje:Q",
+                title="Porcentaje del máximo",
+                format=".0%"
+            )
         ]
     )
 
@@ -1300,11 +1318,16 @@ def grafico_favoritas(favoritas):
         dx=-6,
         fontSize=11,
         color=FONDO
-    ).encode(x=x, y=y, text="etiqueta:N")
+    ).encode(
+        x=x,
+        y=y,
+        text="etiqueta:N"
+    )
 
     return (barras + texto).properties(
         height=34 * len(t) + 110
     ).configure_view(stroke=None)
+
 
 
 def grafico_usuario_en_espacio(usuarios, usuario, vecinos, espacio):

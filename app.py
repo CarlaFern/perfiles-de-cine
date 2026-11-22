@@ -631,6 +631,7 @@ def un_usuario():
               "100 vecinos y no 5: entre todos cubren muchas más películas.")
 
     
+    
     rec, cantidad = h.recomendar(similitud, ratings, peliculas, usuario)
     favoritas = h.peliculas_favoritas(ratings, peliculas, usuario)
 
@@ -639,52 +640,86 @@ def un_usuario():
         icon=":material/theaters:"
     )
 
+    st.markdown(
+        "Queremos comparar las **películas que nuestro sistema recomienda** "
+        "con las **películas que el usuario realmente calificó mejor**. "
+        "A la izquierda mostramos las recomendaciones obtenidas a partir de "
+        "sus 100 usuarios más parecidos; a la derecha, las nueve películas "
+        "a las que el usuario seleccionado les dio sus puntuaciones más altas.\n\n"
+        "Esta comparación permite observar si las recomendaciones son "
+        "coherentes con sus preferencias. Además, comprobamos que ninguna "
+        "de las películas recomendadas figure entre las que ya calificó "
+        "en nuestro conjunto de datos."
+    )
+
     col_rec, col_fav = st.columns(2, gap="large")
 
-    # IZQUIERDA: películas recomendadas
+    # GRÁFICO IZQUIERDO: RECOMENDACIONES
     with col_rec:
         st.markdown("**Las 9 películas que le recomendamos**")
 
         if rec.empty:
             st.warning(
-                "No encontramos películas con evidencia suficiente para este usuario."
+                "No encontramos películas con evidencia suficiente "
+                "para este usuario."
             )
         else:
             grafico(
                 h.grafico_top(rec, cantidad, compacto=True),
-                "Nueve recomendaciones basadas en los vecinos más cercanos"
+                "Nueve películas recomendadas según el apoyo de sus vecinos"
             )
 
             st.caption(
-                f"El apoyo es la proporción ponderada de sus {cantidad} "
-                "vecinos que calificaron cada película con 4 estrellas o más. "
-                "Pasá el mouse para ver más detalles."
+                "Apoyo ponderado de los 100 vecinos más cercanos. "
+                "Cuanto mayor es el porcentaje, mayor es el respaldo "
+                "de los vecinos a esa recomendación."
             )
 
-    # DERECHA: películas mejor calificadas por el usuario
+    # GRÁFICO DERECHO: PELÍCULAS MEJOR CALIFICADAS
     with col_fav:
         st.markdown("**Las 9 películas que mejor calificó**")
 
         if favoritas.empty:
             st.warning(
-                "No hay películas calificadas con título disponible para este usuario."
+                "No encontramos películas calificadas con título "
+                "disponible para este usuario."
             )
         else:
             grafico(
                 h.grafico_favoritas(favoritas),
-                "Las películas mejor calificadas por el usuario seleccionado"
+                "Las nueve películas mejor calificadas por el usuario"
             )
 
             st.caption(
-                "Estas son sus mayores calificaciones, sobre 5 estrellas. "
-                "Cuando varias películas tienen la misma puntuación, "
+                "Calificación del usuario expresada sobre el máximo "
+                "de 5 estrellas. Cuando hay empates, las películas "
                 "se ordenan alfabéticamente."
             )
 
-    # VERIFICAR QUE NO SE RECOMIENDEN PELÍCULAS YA CALIFICADAS
+    # EXPLICACIÓN DE AMBOS GRÁFICOS
+    como_leer(
+        "**Izquierda — Recomendaciones:** cada barra representa una película "
+        "que el usuario no calificó en los datos disponibles. "
+        "Su longitud indica el apoyo ponderado de sus 100 vecinos más "
+        "cercanos: un valor de 60 % significa que recibió el 60 % del "
+        "peso total posible de votos positivos de esos vecinos.\n\n"
+        "**Derecha — Películas mejor calificadas:** cada barra representa "
+        "una película que el usuario sí calificó. Su longitud muestra "
+        "la puntuación sobre el máximo posible: 5 estrellas equivalen "
+        "al 100 %, 4 estrellas al 80 %, y así sucesivamente.\n\n"
+        "**Ambos gráficos usan una escala de 0 a 100 %, pero miden cosas "
+        "diferentes:** apoyo de los vecinos y calificación individual. "
+        "La comparación sirve para observar títulos y géneros, no para "
+        "igualar directamente ambos porcentajes. "
+        "Pasá el mouse sobre las barras para consultar los detalles."
+    )
+
+    # CONTROL DE PELÍCULAS YA CALIFICADAS
     if not rec.empty:
         ya_calificadas = set(
-            ratings.loc[ratings["userId"] == usuario, "movieId"]
+            ratings.loc[
+                ratings["userId"] == usuario, "movieId"
+            ]
         )
 
         coincidencias = len(
@@ -692,50 +727,31 @@ def un_usuario():
         )
 
         st.markdown(
-            f"**Control de coincidencias:** {coincidencias} de {len(rec)} "
-            "películas recomendadas aparecen entre las que este usuario "
-            "calificó en el archivo utilizado."
+            f"**Control de coincidencias:** {coincidencias} de "
+            f"{len(rec)} películas recomendadas aparecen entre las "
+            "que este usuario calificó en el conjunto de datos utilizado."
         )
 
         st.caption(
             "MovieLens registra calificaciones, no reproducciones. "
-            "Además, el archivo de trabajo contiene como máximo "
-            "500 calificaciones por usuario. Por eso, este control "
-            "no demuestra que nunca haya visto esas películas."
+            "El archivo de trabajo contiene como máximo 500 "
+            "calificaciones por usuario. Por eso, este control no "
+            "demuestra que nunca haya visto esas películas."
         )
 
+        # EXPLICACIÓN DE LA CANTIDAD DE RECOMENDACIONES
         with st.container(border=True):
             st.markdown(
                 f":blue[**¿Por qué {len(rec)} y no otra cantidad?**] "
                 "Lo medimos escondiendo ratings "
                 "(`evaluacion_recomendador.ipynb`, Parte 6): "
                 "la primera recomendación acierta 4 de cada 10 veces, "
-                "y la precisión baja de a poco. "
-                "No hay un salto entre una película y la siguiente "
-                "donde cortar, así que usamos un criterio de calidad: "
-                f"cada una de las primeras {h.N_RECOMENDACIONES} "
-                "acierta al menos 1 de cada 5 veces, y de ahí para abajo, "
-                "menos. En todas las posiciones le gana a recomendar "
-                "las películas más populares."
-            )
-
-    st.subheader("Películas para recomendarle", icon=":material/theaters:")
-    if rec.empty:
-        st.warning("No encontramos películas con evidencia suficiente para este usuario.")
-    else:
-        grafico(h.grafico_top(rec, cantidad), "Las películas recomendadas con el apoyo de los vecinos")
-        como_leer(f"Cada barra es una película que el usuario no calificó, en el orden en que la recomendamos. Su "
-                  f"largo es el **apoyo**: qué parte de sus {cantidad} vecinos la calificó con 4 o más, pesando "
-                  "más a los más cercanos (100 % = les gustó a todos). Al lado, cuántos vecinos exactamente. Pasá "
-                  "el mouse por una barra para ver los géneros y el promedio que le pusieron los que la vieron.")
-        with st.container(border=True):
-            st.markdown(
-                f":blue[**¿Por qué {len(rec)} y no otra cantidad?**] Lo medimos escondiendo ratings "
-                "(`evaluacion_recomendador.ipynb`, Parte 6): la primera recomendación acierta 4 de cada 10 "
-                f"veces, y la precisión baja de a poco. No hay un salto entre una película y la siguiente donde "
-                f"cortar, así que usamos un criterio de calidad: cada una de las primeras {h.N_RECOMENDACIONES} "
-                "acierta al menos 1 de cada 5 veces, y de ahí para abajo, menos. En todas las posiciones le gana a "
-                "recomendar las películas más populares."
+                "y la precisión baja de a poco. No hay un salto entre "
+                "una película y la siguiente donde cortar, así que "
+                "usamos un criterio de calidad: cada una de las primeras "
+                f"{h.N_RECOMENDACIONES} acierta al menos 1 de cada 5 veces, "
+                "y de ahí para abajo, menos. En todas las posiciones "
+                "le gana a recomendar las películas más populares."
             )
 
 un_usuario()
