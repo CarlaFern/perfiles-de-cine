@@ -1158,10 +1158,16 @@ def grafico_top(rec, cantidad, compacto=False):
         "al menos 1 de cada 5 veces; de ahí para abajo, menos."
     )
 
-    return (barras + texto).properties(
-        height=34 * len(t) + 110,
-        title=encabezado
-    ).configure_view(stroke=None)
+   
+    grafico = (barras + texto).properties(
+        height=34 * len(t) + 110
+    )
+
+    if encabezado is not None:
+        grafico = grafico.properties(title=encabezado)
+
+    return grafico.configure_view(stroke=None)
+
 
 
 def peliculas_favoritas(ratings, peliculas, usuario, n=N_RECOMENDACIONES):
