@@ -139,7 +139,7 @@ st.title("¿Se pueden armar perfiles de espectadores con lo que califican, y usa
          anchor="inicio")
 st.markdown("**Sí, es posible.** A partir de las calificaciones de películas, analizamos "
     "patrones de valoración y aplicamos técnicas de aprendizaje automático que nos "
-    "permitieron agrupar usuarios con gustos similares.\n\n"
+    "permitieron agrupar usuarios con gustos similares. "
     "Estos perfiles son la base de nuestro sistema de recomendación, que busca sugerir "
     "películas a partir de las preferencias de otros usuarios con gustos parecidos."
 )
@@ -170,15 +170,18 @@ st.markdown(
     "información para el objetivo."
 )
 
-st.subheader("Paso 1 · Una tabla pelada de votos", anchor="paso-crudo")
+st.subheader("Paso 1 · Los datos originales: registros de calificaciones de MovieLens", anchor="paso-crudo")
 izq, der = st.columns([3, 2], gap="large")
 with izq:
     st.markdown(
         "Partimos de **MovieLens**, una colección pública de datos para investigación que reúne "
         f"calificaciones de usuarios reales desde {R['anio_primer_voto']} hasta {R['anio_ultimo_voto']}. "
-        "Su archivo `ratings.csv` es una tabla pelada: cada fila es un voto de un usuario a una película, "
-        "con la fecha en segundos. No dice qué película es, ni su género, ni su año de estreno: esas "
-        "features hay que ir a buscarlas. Así empieza el archivo:"
+        "Su archivo `ratings.csv` contiene los registros originales de calificaciones: cada fila "
+        "representa la valoración de un usuario sobre una película, junto con la fecha de dicha "
+        "valoración expresada como marca de tiempo (*timestamp*) en segundos. "
+        "Este archivo identifica las películas mediante un código, pero no incluye sus nombres, "
+        "géneros ni años de estreno. Para obtener esos atributos, necesitamos incorporar "
+        "información adicional. Así comienza el archivo:"
     )
     st.table(origen["crudo"].astype({"rating": str}).set_index("userId"))
 with der:
