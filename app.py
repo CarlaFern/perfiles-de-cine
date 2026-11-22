@@ -409,13 +409,6 @@ st.dataframe(ejes_tabla, hide_index=True, alt="Cada eje de las dos PCA, con su v
                  format="percent", min_value=0, max_value=0.6)})
 st.caption("Los primeros ejes son los más importantes y los más fáciles de leer; los últimos de géneros son "
            "matices chicos (5 % cada uno) que K-means usa igual.")
-st.markdown(
-    "Con dos ejes ya se ve la estructura: cada género tiene su zona. Elegí un género abajo para ver dónde "
-    "están los usuarios a los que más les gusta."
-)
-grafico(h.grafico_fanaticos(usuarios),
-        "Mapa de calor del espacio de géneros con los usuarios de cada género resaltados")
-como_leer('Arriba, el plano de los dos primeros ejes de géneros dividido en celdas: cuanto más oscura la celda, más usuarios hay en esa zona. Abajo, cuántos usuarios tienen cada género como su afinidad más alta. Al hacer clic en una barra, los círculos muestran en qué celdas están esos usuarios (más grande = más usuarios). Doble clic para volver a ver todos.')
 with st.expander("Ver los números", icon=":material/table_chart:"):
     c1, c2 = st.columns(2)
     c1.dataframe(T["varianza"], hide_index=True, alt="Varianza acumulada por componente",
@@ -510,6 +503,24 @@ with st.expander("Ver los números", icon=":material/table_chart:"):
     c1.dataframe(cruce, hide_index=True, alt="Usuarios por perfil combinado")
     c2.dataframe(rho.rename("ρ de Spearman").round(3), alt="Correlación de la actividad con cada eje")
     c3.dataframe(medianas.rename("Mediana de ratings"), alt="Mediana de ratings por grupo")
+st.subheader("Explorá dónde aparecen los gustos en el espacio de géneros")
+
+st.markdown(
+    "Con dos ejes ya se ve la estructura: cada género tiene su zona. Elegí un género abajo para ver dónde "
+    "están los usuarios a los que más les gusta."
+)
+
+grafico(
+    h.grafico_fanaticos(usuarios),
+    "Mapa de calor del espacio de géneros con los usuarios de cada género resaltados"
+)
+
+como_leer(
+    'Arriba, el plano de los dos primeros ejes de géneros dividido en celdas: cuanto más oscura la celda, '
+    'más usuarios hay en esa zona. Abajo, cuántos usuarios tienen cada género como su afinidad más alta. '
+    'Al hacer clic en una barra, los círculos muestran en qué celdas están esos usuarios '
+    '(más grande = más usuarios). Doble clic para volver a ver todos.'
+)
 
 
 # ---------------------------------------------------------------------------
