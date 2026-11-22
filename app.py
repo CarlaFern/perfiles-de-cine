@@ -170,7 +170,7 @@ st.markdown(
     "información para el objetivo."
 )
 
-st.subheader("Paso 1 · Los datos originales: registros de calificaciones de MovieLens", anchor="paso-crudo")
+st.subheader("Paso 1 · Los datos originales: calificaciones de MovieLens", anchor="paso-crudo")
 izq, der = st.columns([3, 2], gap="large")
 with izq:
     st.markdown(
@@ -630,7 +630,95 @@ def un_usuario():
               "que les haya gustado a los dos, porque vieron películas distintas del mismo estilo. Por eso usamos "
               "100 vecinos y no 5: entre todos cubren muchas más películas.")
 
+    
     rec, cantidad = h.recomendar(similitud, ratings, peliculas, usuario)
+    favoritas = h.peliculas_favoritas(ratings, peliculas, usuario)
+
+    st.subheader(
+        "Recomendaciones y películas mejor calificadas",
+        icon=":material/theaters:"
+    )
+
+    col_rec, col_fav = st.columns(2, gap="large")
+
+    # IZQUIERDA: películas recomendadas
+    with col_rec:
+        st.markdown("**Las 9 películas que le recomendamos**")
+
+        if rec.empty:
+            st.warning(
+                "No encontramos películas con evidencia suficiente para este usuario."
+            )
+        else:
+            grafico(
+                h.grafico_top(rec, cantidad, compacto=True),
+                "Nueve recomendaciones basadas en los vecinos más cercanos"
+            )
+
+            st.caption(
+                f"El apoyo es la proporción ponderada de sus {cantidad} "
+                "vecinos que calificaron cada película con 4 estrellas o más. "
+                "Pasá el mouse para ver más detalles."
+            )
+
+    # DERECHA: películas mejor calificadas por el usuario
+    with col_fav:
+        st.markdown("**Las 9 películas que mejor calificó**")
+
+        if favoritas.empty:
+            st.warning(
+                "No hay películas calificadas con título disponible para este usuario."
+            )
+        else:
+            grafico(
+                h.grafico_favoritas(favoritas),
+                "Las películas mejor calificadas por el usuario seleccionado"
+            )
+
+            st.caption(
+                "Estas son sus mayores calificaciones, sobre 5 estrellas. "
+                "Cuando varias películas tienen la misma puntuación, "
+                "se ordenan alfabéticamente."
+            )
+
+    # VERIFICAR QUE NO SE RECOMIENDEN PELÍCULAS YA CALIFICADAS
+    if not rec.empty:
+        ya_calificadas = set(
+            ratings.loc[ratings["userId"] == usuario, "movieId"]
+        )
+
+        coincidencias = len(
+            set(rec["movieId"]) & ya_calificadas
+        )
+
+        st.markdown(
+            f"**Control de coincidencias:** {coincidencias} de {len(rec)} "
+            "películas recomendadas aparecen entre las que este usuario "
+            "calificó en el archivo utilizado."
+        )
+
+        st.caption(
+            "MovieLens registra calificaciones, no reproducciones. "
+            "Además, el archivo de trabajo contiene como máximo "
+            "500 calificaciones por usuario. Por eso, este control "
+            "no demuestra que nunca haya visto esas películas."
+        )
+
+        with st.container(border=True):
+            st.markdown(
+                f":blue[**¿Por qué {len(rec)} y no otra cantidad?**] "
+                "Lo medimos escondiendo ratings "
+                "(`evaluacion_recomendador.ipynb`, Parte 6): "
+                "la primera recomendación acierta 4 de cada 10 veces, "
+                "y la precisión baja de a poco. "
+                "No hay un salto entre una película y la siguiente "
+                "donde cortar, así que usamos un criterio de calidad: "
+                f"cada una de las primeras {h.N_RECOMENDACIONES} "
+                "acierta al menos 1 de cada 5 veces, y de ahí para abajo, "
+                "menos. En todas las posiciones le gana a recomendar "
+                "las películas más populares."
+            )
+
     st.subheader("Películas para recomendarle", icon=":material/theaters:")
     if rec.empty:
         st.warning("No encontramos películas con evidencia suficiente para este usuario.")

@@ -1097,28 +1097,156 @@ def explicar_vecinos(usuario, similitud, usuarios, ratings, peliculas, k=5):
                       "Por ejemplo": " · ".join(titulo_de.get(m, str(m)) for m in populares)})
     return pd.DataFrame(filas)
 
-
-def grafico_top(rec, cantidad):
-    """El top de los vecinos: una barra por película con su apoyo, en orden."""
+def grafico_top(rec, cantidad, compacto=False):
+    """Gráfico de las recomendaciones según el apoyo de los vecinos."""
     t = rec.assign(
-        nombre=[f"{i}. {titulo} ({str(f)[:4] if pd.notna(f) else 's/f'})"
-                for i, (titulo, f) in enumerate(zip(rec["titulo"], rec["fecha_estreno"]), start=1)],
-        generos=[" · ".join(GENERO_ES.get(g, g) for g in str(x).split("|")) if pd.notna(x) else ""
-                 for x in rec["genres"]],
-        etiqueta=[f"{dec(a * 100, 0)} % · a {v} de {cantidad}" for a, v in zip(rec["apoyo"], rec["votantes"])])
-    y = alt.Y("nombre:N", title=None, sort=list(t["nombre"]), axis=alt.Axis(labelLimit=0, labelFontSize=12))
-    x = alt.X("apoyo:Q", title=f"Apoyo: parte de sus {cantidad} vecinos a los que les gustó (pesando más a los más parecidos)",
-              scale=alt.Scale(domain=[0, 1]), axis=alt.Axis(format="%", values=[0, 0.25, 0.5, 0.75, 1]))
-    barras = alt.Chart(t).mark_bar(size=16, cornerRadiusEnd=4, color=EPOCA_RECIENTE).encode(
-        x=x, y=y, tooltip=[alt.Tooltip("titulo:N", title="Película"), alt.Tooltip("generos:N", title="Géneros"),
-                           alt.Tooltip("votantes:Q", title=f"Le gustó a (de {cantidad})"),
-                           alt.Tooltip("apoyo:Q", title="Apoyo", format=".0%"),
-                           alt.Tooltip("rating_promedio:Q", title="Promedio de los que la vieron", format=".2f")])
-    texto = alt.Chart(t).mark_text(align="left", dx=6, fontSize=11, color=TEXTO).encode(x=x, y=y, text="etiqueta:N")
-    return (barras + texto).properties(height=34 * len(t) + 110, title=titulo(
+        nombre=[
+            f"{i}. {pel} ({str(fecha)[:4] if pd.notna(fecha) else 's/f'})"
+            for i, (pel, fecha) in enumerate(
+                zip(rec["titulo"], rec["fecha_estreno"]), 1
+            )
+        ],
+        generos=[
+            " · ".join(GENERO_ES.get(g, g) for g in str(x).split("|"))
+            if pd.notna(x) else ""
+            for x in rec["genres"]
+        ],
+        etiqueta=[
+            f"{dec(a * 100, 0)} %" if compacto
+            else f"{dec(a * 100, 0)} % · a {v} de {cantidad}"
+            for a, v in zip(rec["apoyo"], rec["votantes"])
+        ]
+    )
+
+    y = alt.Y(
+        "nombre:N", title=None, sort=list(t["nombre"]),
+        axis=alt.Axis(
+            labelLimit=160 if compacto else 0,
+            labelFontSize=11 if compacto else 12
+        )
+    )
+
+    x = alt.X(
+        "apoyo:Q",
+        title=None if compacto else
+              f"Apoyo: parte de sus {cantidad} vecinos a los que les gustó (pesando más a los más parecidos)",
+        scale=alt.Scale(domain=[0, 1]),
+        axis=alt.Axis(format="%", values=[0, 0.25, 0.5, 0.75, 1])
+    )
+
+    barras = alt.Chart(t).mark_bar(
+        size=16, cornerRadiusEnd=4, color=EPOCA_RECIENTE
+    ).encode(
+        x=x, y=y,
+        tooltip=[
+            alt.Tooltip("titulo:N", title="Película"),
+            alt.Tooltip("generos:N", title="Géneros"),
+            alt.Tooltip("votantes:Q", title=f"Le gustó a (de {cantidad})"),
+            alt.Tooltip("apoyo:Q", title="Apoyo", format=".0%"),
+            alt.Tooltip("rating_promedio:Q",
+                        title="Promedio de los que la vieron", format=".2f")
+        ]
+    )
+
+    texto = alt.Chart(t).mark_text(
+        align="left", dx=6, fontSize=11, color=TEXTO
+    ).encode(x=x, y=y, text="etiqueta:N")
+
+    encabezado = None if compacto else titulo(
         f"Su top {len(t)}: las películas que más les gustaron a sus {cantidad} usuarios más parecidos",
         f"Recomendamos {len(t)} porque, en nuestras pruebas, cada una de las primeras {N_RECOMENDACIONES} acierta "
-        "al menos 1 de cada 5 veces; de ahí para abajo, menos.")).configure_view(stroke=None)
+        "al menos 1 de cada 5 veces; de ahí para abajo, menos."
+    )
+
+    return (barras + texto).properties(
+        height=34 * len(t) + 110,
+        title=encabezado
+    ).configure_view(stroke=None)
+
+
+def peliculas_favoritas(ratings, peliculas, usuario, n=N_RECOMENDACIONES):
+    """Obtiene las películas mejor calificadas por el usuario."""
+
+    r = ratings.loc[
+        ratings["userId"] == usuario,
+        ["movieId", "rating"]
+    ]
+
+    favoritas = r.merge(
+        peliculas[["movieId", "titulo", "fecha_estreno", "genres"]],
+        on="movieId",
+        how="inner"
+    )
+
+    return (
+        favoritas.dropna(subset=["titulo"])
+        .sort_values(
+            ["rating", "titulo", "movieId"],
+            ascending=[False, True, True]
+        )
+        .head(n)
+        .copy()
+    )
+
+
+def grafico_favoritas(favoritas):
+    """Gráfico de las películas mejor valoradas por el usuario."""
+
+    t = favoritas.assign(
+        nombre=[
+            f"{i}. {pel} ({str(fecha)[:4]})"
+            for i, (pel, fecha) in enumerate(
+                zip(favoritas["titulo"], favoritas["fecha_estreno"]), 1
+            )
+        ],
+        generos=[
+            " · ".join(GENERO_ES.get(g, g) for g in str(x).split("|"))
+            if pd.notna(x) else ""
+            for x in favoritas["genres"]
+        ],
+        etiqueta=[
+            f"{dec(v, 1)} ★" for v in favoritas["rating"]
+        ]
+    )
+
+    y = alt.Y(
+        "nombre:N",
+        title=None,
+        sort=list(t["nombre"]),
+        axis=alt.Axis(labelLimit=160, labelFontSize=11)
+    )
+
+    x = alt.X(
+        "rating:Q",
+        title=None,
+        scale=alt.Scale(domain=[0, 5]),
+        axis=alt.Axis(values=[0, 1, 2, 3, 4, 5])
+    )
+
+    barras = alt.Chart(t).mark_bar(
+        size=16,
+        cornerRadiusEnd=4,
+        color=QUEMADO
+    ).encode(
+        x=x, y=y,
+        tooltip=[
+            alt.Tooltip("titulo:N", title="Película"),
+            alt.Tooltip("generos:N", title="Géneros"),
+            alt.Tooltip("rating:Q",
+                        title="Calificación del usuario", format=".1f")
+        ]
+    )
+
+    texto = alt.Chart(t).mark_text(
+        align="right",
+        dx=-6,
+        fontSize=11,
+        color=FONDO
+    ).encode(x=x, y=y, text="etiqueta:N")
+
+    return (barras + texto).properties(
+        height=34 * len(t) + 110
+    ).configure_view(stroke=None)
 
 
 def grafico_usuario_en_espacio(usuarios, usuario, vecinos, espacio):
