@@ -698,20 +698,21 @@ def un_usuario():
 
     # EXPLICACIÓN DE AMBOS GRÁFICOS
     como_leer(
-        "**Izquierda — Recomendaciones:** cada barra representa una película "
-        "que el usuario no calificó en los datos disponibles. "
-        "Su longitud indica el apoyo ponderado de sus 100 vecinos más "
-        "cercanos: un valor de 60 % significa que recibió el 60 % del "
-        "peso total posible de votos positivos de esos vecinos.\n\n"
-        "**Derecha — Películas mejor calificadas:** cada barra representa "
-        "una película que el usuario sí calificó. Su longitud muestra "
-        "la puntuación sobre el máximo posible: 5 estrellas equivalen "
-        "al 100 %, 4 estrellas al 80 %, y así sucesivamente.\n\n"
-        "**Ambos gráficos usan una escala de 0 a 100 %, pero miden cosas "
-        "diferentes:** apoyo de los vecinos y calificación individual. "
-        "La comparación sirve para observar títulos y géneros, no para "
-        "igualar directamente ambos porcentajes. "
-        "Pasá el mouse sobre las barras para consultar los detalles."
+        "\n\n"
+        "- **→ Izquierda — Recomendaciones:** cada barra representa una película "
+        "que el usuario no calificó en nuestros datos. Su longitud indica el "
+        "apoyo ponderado de sus 100 vecinos más cercanos: cuanto mayor es "
+        "el porcentaje, mayor es el respaldo de usuarios con gustos similares.\n\n"
+
+        "- **→ Derecha — Películas mejor calificadas:** cada barra representa "
+        "una película que el usuario sí calificó. Su longitud muestra la "
+        "puntuación que le dio: 5 estrellas equivalen al 100 %, "
+        "4 estrellas al 80 %, y así sucesivamente.\n\n"
+
+        "- **→ Misma escala, distinto significado:** ambos gráficos van del "
+        "0 al 100 %, pero el izquierdo mide el apoyo de los vecinos y el "
+        "derecho la calificación individual. Por eso, los porcentajes "
+        "no se comparan directamente.\n\n"
     )
 
     # CONTROL DE PELÍCULAS YA CALIFICADAS
@@ -756,7 +757,7 @@ def un_usuario():
 
 un_usuario()
 
-st.space("large")
+st.space("medium")
 st.caption(
     f"Fuente: MovieLens 32M · {h.fmt(act['usuarios'])} usuarios al azar con ≥ 100 ratings (random_state 42) · "
     f"tope de 500 ratings · TMDB para géneros y fechas · modelo con los {h.fmt(act['modelados'])} usuarios "
