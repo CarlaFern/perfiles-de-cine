@@ -531,8 +531,15 @@ def grafico_varianza(tabla):
 # ---------------------------------------------------------------------------
 # Las variables del modelo y los ejes de las PCA, con nombre
 # ---------------------------------------------------------------------------
-EPOCA_CORTA = {"prop_antes_1980": "antes de 1980", "prop_1980s": "los 80", "prop_1990s": "los 90",
-               "prop_2000s": "los 2000", "prop_2010s": "los 2010", "prop_2020_mas": "2020 en adelante"}
+EPOCA_CORTA = {
+    "prop_antes_1980": "antes de 1980",
+    "prop_1980s": "los 80",
+    "prop_1990s": "los 90",
+    "prop_2000s": "los 2000",
+    "prop_2010s": "los 2010",
+    "prop_2020_mas": "2020 en adelante",
+}
+
 NOMBRES_EJES = {
     ("Géneros", 1): "Drama ↔ Aventura",
     ("Géneros", 2): "Romance ↔ Acción",
@@ -547,9 +554,9 @@ NOMBRES_EJES = {
     ("Épocas", 2): "Pre-80 ↔ 90s",
     ("Épocas", 3): "2010s ↔ 2000s",
 }
-EJES = {}          # (bloque, número de eje) -> (polo negativo, polo positivo); lo llena fijar_ejes
-EJES_CORTOS = {}   # lo mismo con hasta dos nombres por lado, para los títulos de los ejes
 
+EJES = {}
+EJES_CORTOS = {}
 
 def tabla_cargas_todas(modelos):
     """Cuánto pesa cada variable en cada eje de las dos PCA (una fila por variable y eje)."""
@@ -601,24 +608,36 @@ def titulo_eje(bloque, eje):
 def tabla_ejes(cargas):
     """Un renglón por eje: cuánta varianza explica y qué opone."""
     filas = []
-    for (bloque, eje), grupo in cargas.groupby(["bloque", "eje"], sort=False):
-        negativo, positivo = EJES.get((bloque, eje), ("", ""))
-        filas.append({
-        "Bloque": bloque,
-        "Eje": NOMBRES_EJES[(bloque, eje)],
-        "Varianza que explica": grupo["varianza"].iloc[0],
-        "Un extremo (−)": negativo,
-        "El otro extremo (+)": positivo
-    })
-    return pd.DataFrame(filas)
 
+    for (bloque, eje), grupo in cargas.groupby(
+        ["bloque", "eje"],
+        sort=False
+    ):
+        negativo, positivo = EJES.get(
+            (bloque, eje),
+            ("", "")
+        )
+
+        filas.append({
+            "Bloque": bloque,
+            "Eje": NOMBRES_EJES[(bloque, eje)],
+            "Varianza que explica": grupo["varianza"].iloc[0],
+            "Un extremo (−)": negativo,
+            "El otro extremo (+)": positivo,
+        })
+
+    return pd.DataFrame(filas)
 
 def grafico_cargas_eje(cargas, bloque):
     """Elegí un eje y mirá qué variables lo empujan hacia cada lado."""
     datos = cargas[cargas["bloque"] == bloque].copy()
     datos["lado"] = np.where(datos["carga"] < 0, "Empuja hacia la izquierda (−)", "Empuja hacia la derecha (+)")
     n = int(datos["eje"].max())
-    nombre = "eje_" + ("generos" if bloque == "Géneros" else "epocas")
+
+    nombre = "eje_" + (
+        "generos" if bloque == "Géneros" else "epocas"
+    )
+
     opciones = list(range(1, n + 1))
 
     etiquetas = [
@@ -634,7 +653,7 @@ def grafico_cargas_eje(cargas, bloque):
             labels=etiquetas,
             name=f"Eje de {bloque.lower()}: "
         )
-    )                                                             name=f"Eje de {bloque.lower()}: "))
+    )
     # en Streamlit la altura incluye título, leyenda y eje: se suma lo que ocupan
     alto = 28 * datos["variable"].nunique() + 190
     return alt.Chart(datos).transform_filter(f"datum.eje == {nombre}").mark_bar(size=14, cornerRadiusEnd=3).encode(
