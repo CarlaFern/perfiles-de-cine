@@ -533,6 +533,20 @@ def grafico_varianza(tabla):
 # ---------------------------------------------------------------------------
 EPOCA_CORTA = {"prop_antes_1980": "antes de 1980", "prop_1980s": "los 80", "prop_1990s": "los 90",
                "prop_2000s": "los 2000", "prop_2010s": "los 2010", "prop_2020_mas": "2020 en adelante"}
+NOMBRES_EJES = {
+    ("Géneros", 1): "Drama ↔ Aventura",
+    ("Géneros", 2): "Romance ↔ Acción",
+    ("Géneros", 3): "Terror ↔ Historia",
+    ("Géneros", 4): "Romance ↔ Animación",
+    ("Géneros", 5): "Misterio ↔ Western",
+    ("Géneros", 6): "Western ↔ Crimen",
+    ("Géneros", 7): "Crimen ↔ Música",
+    ("Géneros", 8): "Crimen ↔ Romance",
+
+    ("Épocas", 1): "Clásicos ↔ 2000–2010",
+    ("Épocas", 2): "Pre-80 ↔ 90s",
+    ("Épocas", 3): "2010s ↔ 2000s",
+}
 EJES = {}          # (bloque, número de eje) -> (polo negativo, polo positivo); lo llena fijar_ejes
 EJES_CORTOS = {}   # lo mismo con hasta dos nombres por lado, para los títulos de los ejes
 
@@ -589,8 +603,13 @@ def tabla_ejes(cargas):
     filas = []
     for (bloque, eje), grupo in cargas.groupby(["bloque", "eje"], sort=False):
         negativo, positivo = EJES.get((bloque, eje), ("", ""))
-        filas.append({"Bloque": bloque, "Eje": eje, "Varianza que explica": grupo["varianza"].iloc[0],
-                      "Un extremo (−)": negativo, "El otro extremo (+)": positivo})
+        filas.append({
+        "Bloque": bloque,
+        "Eje": NOMBRES_EJES[(bloque, eje)],
+        "Varianza que explica": grupo["varianza"].iloc[0],
+        "Un extremo (−)": negativo,
+        "El otro extremo (+)": positivo
+    })
     return pd.DataFrame(filas)
 
 
@@ -600,8 +619,22 @@ def grafico_cargas_eje(cargas, bloque):
     datos["lado"] = np.where(datos["carga"] < 0, "Empuja hacia la izquierda (−)", "Empuja hacia la derecha (+)")
     n = int(datos["eje"].max())
     nombre = "eje_" + ("generos" if bloque == "Géneros" else "epocas")
-    eje = alt.param(name=nombre, value=1, bind=alt.binding_radio(options=list(range(1, n + 1)),
-                                                                 name=f"Eje de {bloque.lower()}: "))
+    opciones = list(range(1, n + 1))
+
+    etiquetas = [
+        NOMBRES_EJES[(bloque, i)]
+        for i in opciones
+    ]
+
+    eje = alt.param(
+        name=nombre,
+        value=1,
+        bind=alt.binding_radio(
+            options=opciones,
+            labels=etiquetas,
+            name=f"Eje de {bloque.lower()}: "
+        )
+    )                                                             name=f"Eje de {bloque.lower()}: "))
     # en Streamlit la altura incluye título, leyenda y eje: se suma lo que ocupan
     alto = 28 * datos["variable"].nunique() + 190
     return alt.Chart(datos).transform_filter(f"datum.eje == {nombre}").mark_bar(size=14, cornerRadiusEnd=3).encode(
