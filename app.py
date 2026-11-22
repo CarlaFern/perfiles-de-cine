@@ -503,11 +503,18 @@ with st.expander("Ver los números", icon=":material/table_chart:"):
     c1.dataframe(cruce, hide_index=True, alt="Usuarios por perfil combinado")
     c2.dataframe(rho.rename("ρ de Spearman").round(3), alt="Correlación de la actividad con cada eje")
     c3.dataframe(medianas.rename("Mediana de ratings"), alt="Mediana de ratings por grupo")
+
+
+
+# ---------------------------------------------------------------------------
+# 8 · Explorá (la copa)
+# ---------------------------------------------------------------------------
+seccion(7, "Tu turno", "explora", "Explorá los datos")
 st.subheader("Explorá dónde aparecen los gustos en el espacio de géneros")
 
 st.markdown(
-    "Con dos ejes ya se ve la estructura: cada género tiene su zona. Elegí un género abajo para ver dónde "
-    "están los usuarios a los que más les gusta."
+    "Con dos ejes ya se ve la estructura: cada género tiene su zona. "
+    "Elegí un género abajo para ver dónde están los usuarios a los que más les gusta."
 )
 
 grafico(
@@ -521,12 +528,8 @@ como_leer(
     'Al hacer clic en una barra, los círculos muestran en qué celdas están esos usuarios '
     '(más grande = más usuarios). Doble clic para volver a ver todos.'
 )
+st.subheader("Explorá los usuarios")
 
-
-# ---------------------------------------------------------------------------
-# 8 · Explorá (la copa)
-# ---------------------------------------------------------------------------
-seccion(7, "Tu turno", "explora", "Explorá los usuarios")
 st.markdown(
     "Cada punto es un usuario. **Arrastrá** sobre la nube para marcar un grupo de usuarios y ver su perfil "
     "a la derecha; **hacé clic en la leyenda** para resaltar un grupo; pasá el mouse por un punto para ver "
