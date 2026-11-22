@@ -137,6 +137,12 @@ with st.sidebar:
 st.markdown(":blue[**PROYECTO INTEGRADOR · CIENCIA DE DATOS**]")
 st.title("¿Se pueden armar perfiles de espectadores con lo que califican, y usarlos para recomendar?",
          anchor="inicio")
+st.markdown("**Sí, es posible.** A partir de las calificaciones de películas, analizamos "
+    "patrones de valoración y aplicamos técnicas de aprendizaje automático que nos "
+    "permitieron agrupar usuarios con gustos similares.\n\n"
+    "Estos perfiles son la base de nuestro sistema de recomendación, que busca sugerir "
+    "películas a partir de las preferencias de otros usuarios con gustos parecidos."
+)
 st.markdown(
     "**El problema.** Queremos saber si se pueden armar perfiles de espectadores a partir de cómo "
     "califican películas, y usarlos para recomendar. Pero al principio sólo tenemos una tabla de votos: "
