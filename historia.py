@@ -1034,12 +1034,14 @@ def tabla_perfil_generos(usuarios):
     cols = [c for c in usuarios.columns if c.startswith("g_")]
     t = usuarios.groupby("nombre_genero")[cols].mean().T
     t.index = [c[2:] for c in t.index]
-    
-    print("COLUMNAS REALES:", t.columns.tolist())
 
-    t["diferencia"] = t[GENEROS_GRUPOS[1]] - t[GENEROS_GRUPOS[0]]
+    # Para ordenar los géneros miramos cuánto se separan los grupos:
+    # diferencia entre el grupo con mayor afinidad y el de menor afinidad.
+    t["diferencia"] = t.max(axis=1) - t.min(axis=1)
+
     largo = t.drop(columns="diferencia").stack().rename("afinidad").reset_index()
     largo.columns = ["genero", "grupo", "afinidad"]
+
     return largo, t["diferencia"].sort_values()
 
 
@@ -1054,8 +1056,11 @@ def grafico_perfil_generos(largo, orden):
         tooltip=["genero:N", "grupo:N", alt.Tooltip("afinidad:Q", format="+.3f")])
     cero = alt.Chart(pd.DataFrame({"x": [0]})).mark_rule(color=GRIS, strokeDash=[3, 3]).encode(x="x:Q")
     return (cero + regla + puntos).properties(height=530, title=titulo(
-        ["Drama, crimen y bélico de un lado;", "animación, familia y aventura del otro"],
-        ["Cada punto es el promedio de un grupo.", "Ordenados por la distancia entre los dos grupos."]))
+        "Los cuatro grupos tienen perfiles de género distintos",
+        [
+            "Cada punto es la afinidad media de un grupo.",
+            "Los géneros están ordenados según cuánto se diferencian los cuatro grupos."
+        ]))
 
 
 def tabla_perfil_epocas(usuarios):
