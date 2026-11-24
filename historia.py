@@ -989,7 +989,7 @@ def grafico_cruce(largo, p, v):
     t = t.sort_values(["nombre_genero", "orden"])
     t["y1"] = t.groupby("nombre_genero")["parte"].cumsum()
     t["y0"] = t["y1"] - t["parte"]
-    anchos = t.groupby("nombre_genero")["usuarios"].sum().reindex(GENEROS_GRUPOS) / total
+    anchos = t.groupby("nombre_genero")["usuarios"].sum() / total
     x1 = anchos.cumsum()
     t["x0"] = t["nombre_genero"].map(x1 - anchos)
     t["x1"] = t["nombre_genero"].map(x1)
