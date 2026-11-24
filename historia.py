@@ -33,9 +33,9 @@ APAGADO = "#dcdce2"
 QUEMADO, CHARTREUSE, NAVY, ELECTRICO = "#8b3a26", "#c4a22c", "#3e3f66", "#2b30a3"
 GRIS_VIA, GRIS_NOTA = "#e3e4e8", "#80818f"
 
-GENEROS_GRUPOS = ["Animación, familia y aventura", "Drama, crimen e histórico"]
+GENEROS_GRUPOS = ["Géneros · Grupo 1","Géneros · Grupo 2","Géneros · Grupo 3","Géneros · Grupo 4"] #Aca falta asignar nombre de grupos
 DECADAS_GRUPOS = ["Cine de 2000–2010", "Cine noventero y clásico"]
-COLOR_GENERO = alt.Scale(domain=GENEROS_GRUPOS, range=[CHARTREUSE, QUEMADO])
+COLOR_GENERO = alt.Scale(domain=GENEROS_GRUPOS,range=[CHARTREUSE, QUEMADO, NAVY, ELECTRICO])
 # los dos grupos de época: electric blue y lavanda. Validado con validate_palette.js de la skill
 # dataviz (dusty navy junto a electric blue no se distinguían: diferencia 11,6, mínimo 15).
 # El lavanda tiene poco contraste con el fondo blanco: va siempre con etiqueta o leyenda.
@@ -803,9 +803,11 @@ def grafico_senales(evaluacion):
 
     def panel(bloque):
         datos = largo[largo["bloque"] == bloque]
-        banda = alt.Chart(pd.DataFrame({"a": [1.75], "b": [2.25]})).mark_rect(color="#eef0fb").encode(
+        k_elegido = 4 if bloque == "Géneros" else 2
+        banda = alt.Chart(
+            pd.DataFrame({"a": [k_elegido - 0.25],"b": [k_elegido + 0.25]})).mark_rect(color="#eef0fb").encode(
             x=alt.X("a:Q", scale=escala_x), x2="b:Q")
-        rotulo_k = alt.Chart(pd.DataFrame({"k": [2]})).mark_text(
+        rotulo_k = alt.Chart(pd.DataFrame({"k": [k_elegido]})).mark_text(
             text="k elegido", dy=-4, fontSize=11, color=TEXTO, baseline="bottom").encode(x="k:Q", y=alt.datum(1))
         lineas = alt.Chart(datos).mark_line(strokeWidth=2).encode(x=x, y=y, color=color)
         puntos = alt.Chart(datos).mark_circle(size=70, opacity=1, stroke=FONDO, strokeWidth=2).encode(
@@ -821,13 +823,105 @@ def grafico_senales(evaluacion):
         return (banda + rotulo_k + lineas + puntos + rotulos).properties(width=330, height=250, title=bloque)
 
     est = evaluacion.set_index(["bloque", "k"])["estabilidad"]
-    return alt.hconcat(panel("Géneros"), panel("Épocas"), spacing=40).properties(title=titulo(
-        "Con dos grupos las tres señales coinciden, en los dos bloques",
-        [f"Géneros: k = 2 es el más estable ({dec(est['Géneros', 2], 2)}) y la estabilidad cae con cada grupo más. "
-         f"Épocas: el codo está en 2 y la estabilidad es {dec(est['Épocas', 2], 2)}.",
-         "La dispersión siempre baja al sumar grupos: lo que importa es dónde deja de bajar mucho (el codo)."])
+    return alt.hconcat(panel("Géneros"), panel("Épocas"), spacing=40).properties(
+        title=titulo("Mayor separación con K=2; mayor detalle descriptivo con K=4",
+            [f"Géneros: K=2 tiene estabilidad "
+                f"{dec(est['Géneros', 2], 2)} y K=4 tiene "
+                f"{dec(est['Géneros', 4], 2)}. "
+                "Elegimos K=4 para explorar más matices.",
+                "Épocas: mantenemos K=2. "
+                "La banda celeste señala la elección de cada bloque."
+            ])).configure_view(stroke=None)
+
+def grafico_k2_k4(particiones):
+    """
+    Compara K=2 con K=4 en el espacio PCA de géneros.
+    Los dos gráficos tienen el mismo formato.
+    """
+
+    datos_k2 = particiones[particiones["k"] == 2].copy()
+    datos_k4 = particiones[particiones["k"] == 4].copy()
+
+    grupos_2 = ["Grupo 1", "Grupo 2"]
+    grupos_4 = ["Grupo 1", "Grupo 2", "Grupo 3", "Grupo 4"]
+
+    escala_x = alt.Scale(
+        domain=[
+            float(particiones["x"].min()),
+            float(particiones["x"].max())
+        ],
+        nice=False
+    )
+
+    escala_y = alt.Scale(
+        domain=[
+            float(particiones["y"].min()),
+            float(particiones["y"].max())
+        ],
+        nice=False
+    )
+
+    x = alt.X(
+        "x:Q",
+        title=titulo_eje("Géneros", 1),
+        scale=escala_x,
+        axis=alt.Axis(grid=False)
+    )
+
+    y = alt.Y(
+        "y:Q",
+        title=titulo_eje("Géneros", 2),
+        scale=escala_y,
+        axis=alt.Axis(grid=False)
+    )
+
+    grafico_2 = alt.Chart(datos_k2).mark_circle(
+        size=22,
+        opacity=0.6
+    ).encode(
+        x=x,
+        y=y,
+        color=alt.Color(
+            "grupo:N",
+            title="Grupo",
+            scale=alt.Scale(
+                domain=grupos_2,
+                range=[EPOCA_RECIENTE, QUEMADO]
+            ),
+            legend=alt.Legend(orient="right")
+        ),
+        tooltip=[
+            alt.Tooltip("grupo:N", title="Grupo")
+        ]
+    ).properties(
+        width=350,
+        height=370
     ).configure_view(stroke=None)
 
+    grafico_4 = alt.Chart(datos_k4).mark_circle(
+        size=22,
+        opacity=0.6
+    ).encode(
+        x=x,
+        y=y,
+        color=alt.Color(
+            "grupo:N",
+            title="Grupo",
+            scale=alt.Scale(
+                domain=grupos_4,
+                range=[CHARTREUSE, QUEMADO, NAVY, ELECTRICO]
+            ),
+            legend=alt.Legend(orient="right")
+        ),
+        tooltip=[
+            alt.Tooltip("grupo:N", title="Grupo")
+        ]
+    ).properties(
+        width=350,
+        height=370
+    ).configure_view(stroke=None)
+    
+    return grafico_2, grafico_4
 
 def grafico_elegir_k(particiones, evaluacion):
     """B · Botones para elegir k: la nube de géneros se repinta y las tres medidas resaltan ese k."""
@@ -906,7 +1000,6 @@ def grafico_cruce(largo, p, v):
     t["tinta"] = t["nombre_decada"].map({DECADAS_GRUPOS[0]: "#ffffff", DECADAS_GRUPOS[1]: TEXTO})
     cabeceras = t.drop_duplicates("nombre_genero").assign(
         cabecera=lambda d: [f"{g} · {dec(anchos[g] * 100, 0)} % de los usuarios" for g in d["nombre_genero"]])
-    esperado = t.groupby("nombre_decada")["usuarios"].sum()[DECADAS_GRUPOS[0]] / total
 
     sx = alt.Scale(domain=[0, 1], nice=False)
     sy = alt.Scale(domain=[0, 1.12], nice=False)
@@ -925,12 +1018,16 @@ def grafico_cruce(largo, p, v):
         x="xm:Q", y="ym:Q", text="bloque:N", color=alt.Color("tinta:N", scale=None))
     cabecera = alt.Chart(cabeceras).mark_text(fontSize=12, color=GRIS, baseline="bottom").encode(
         x="xm:Q", y=alt.datum(1.1), text="cabecera:N")
-    corte = alt.Chart(pd.DataFrame({"y": [esperado]})).mark_rule(color=TEXTO, strokeWidth=1.5).encode(y="y:Q")
-    return (bloques + rotulos + cabecera + corte).properties(height=360, title=titulo(
-        "Los dos grupos de género se reparten igual entre las épocas",
-        [f"El ancho de cada columna es el tamaño del grupo; la línea, el reparto de todos los usuarios "
-         f"({dec(esperado * 100, 0)} %). Los cortes coinciden.",
-         f"Test χ²: p = {dec(p, 2)} · V de Cramér = {dec(v, 3)}: género y época son dimensiones distintas."]))
+    return (bloques + rotulos + cabecera).properties(
+        height=360,
+        title=titulo(
+            "Los grupos de género se reparten de forma parecida entre las épocas",
+            [
+                "Cada columna es un grupo de género y su ancho indica cuántos usuarios tiene.",
+                f"Test χ²: p = {dec(p, 2)} · V de Cramér = {dec(v, 3)}: género y época describen dimensiones distintas."
+            ]
+        )
+    )
 
 
 def tabla_perfil_generos(usuarios):
@@ -996,7 +1093,20 @@ def grafico_actividad_perfiles(usuarios, rho):
     """Nube de círculos huecos (promedio x cantidad de ratings) con una zona que reparte por perfil."""
     datos = usuarios[["userId", "rating_promedio_general", "cantidad_valoraciones_total", "perfil"]]
     perfiles = [f"{g} · {d}" for g in GENEROS_GRUPOS for d in DECADAS_GRUPOS]
-    escala = alt.Scale(domain=perfiles, range=[CHARTREUSE, "#6e5a12", QUEMADO, "#d08a73"])
+    colores_perfiles = [
+        "#4E79A7",  # azul
+        "#F28E2B",  # naranja
+        "#E15759",  # rojo
+        "#76B7B2",  # turquesa
+        "#59A14F",  # verde
+        "#EDC948",  # amarillo
+        "#B07AA1",  # violeta
+        "#FF9DA7",  # rosa
+    ]
+    escala = alt.Scale(
+        domain=perfiles,
+        range=colores_perfiles
+    )
     zona = alt.selection_interval()
     perfil = alt.selection_point(fields=["perfil"], bind="legend")
     nube = alt.Chart(datos).mark_point(filled=False, size=28, strokeWidth=1.1, clip=True).encode(
@@ -1004,7 +1114,11 @@ def grafico_actividad_perfiles(usuarios, rho):
         y=alt.Y("cantidad_valoraciones_total:Q", title="Ratings por usuario (escala log)",
                 scale=alt.Scale(type="log")),
         color=alt.condition(zona, alt.Color("perfil:N", scale=escala, title=None,
-                                             legend=alt.Legend(orient="top", direction="vertical", labelLimit=0)),
+                                             legend=alt.Legend(
+                                            orient="top",
+                                            direction="vertical",
+                                            columns=2,
+                                            labelLimit=0)),
                             alt.value(APAGADO)),
         opacity=alt.condition(perfil, alt.value(0.8), alt.value(0.05)),
         tooltip=[alt.Tooltip("userId:N", title="Usuario"), alt.Tooltip("perfil:N", title="Perfil"),

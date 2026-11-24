@@ -419,42 +419,160 @@ with st.expander("Ver los números", icon=":material/table_chart:"):
 # ---------------------------------------------------------------------------
 # 6 · Cuántos grupos
 # ---------------------------------------------------------------------------
+
 particiones, epocas_por_comp = particiones_k()
-seccion(5, "Cuántos grupos", "grupos", "Dos grupos por bloque, y cada bloque por su lado")
+
+seccion(
+    5,
+    "Cuántos grupos",
+    "grupos",
+    "Elegimos cuatro grupos de géneros para distinguir más matices"
+)
+
 izq, der = st.columns([3, 2], gap="large")
+
 with izq:
     st.markdown(
-        "Probamos K-means de 1 a 6 grupos en cada espacio y miramos tres señales. El **codo**: cuánta "
-        "dispersión queda dentro de los grupos. La **silhouette**: qué tan separados quedan. Y la "
-        "**estabilidad**: si entrenamos con el 80 % de los usuarios al azar, 20 veces, ¿salen los mismos "
-        "grupos? Después probamos un único modelo con los dos bloques juntos, para ver si convenía no "
-        "separarlos."
+        "Para decidir cuántos grupos utilizar, probamos K-means "
+        "con distintos valores de K y evaluamos tres medidas: "
+        "el **codo**, la **silhouette** y la **estabilidad**.\n\n"
+        "K=2 obtiene una mejor separación entre usuarios, "
+        "pero queríamos investigar si una división más detallada "
+        "permitía identificar diferencias adicionales en sus gustos."
     )
+
 with der:
-    decision("**k = 2** en géneros y **k = 2** en épocas. Cada usuario queda con dos etiquetas, que "
-             "cruzadas dan cuatro perfiles.")
-grafico(h.grafico_senales(ev), "Codo, silhouette y estabilidad según la cantidad de grupos, por bloque")
-como_leer('Un panel por bloque. El eje x es la cantidad de grupos (k) y el eje y, cada medida de 0 a 1. Dispersión (el codo): menos es mejor, y lo que importa es dónde deja de bajar mucho. Separación (la silhouette): más es mejor. Estabilidad: más es mejor; 1 significa que salen los mismos grupos con cualquier 80 % de los usuarios. La banda celeste marca k = 2.')
-grafico(h.grafico_elegir_k(particiones, ev),
-        "Nube del espacio de géneros partida en 2 a 5 grupos, con un control para elegir la cantidad")
-como_leer('Cada círculo es un usuario en los dos primeros ejes de géneros, pintado según el grupo que le asigna K-means. Los botones de abajo cambian la cantidad de grupos. Las barras de la derecha muestran las tres medidas para cada k, con el elegido en azul.')
-grafico(h.grafico_ari(ari), "Coincidencia del modelo conjunto con los modelos separados")
-como_leer('Cada barra compara el modelo conjunto (géneros y épocas juntos) con uno de los dos modelos separados. El ARI va de 0 (coinciden como al azar) a 1 (son idénticos): el conjunto copia casi exacto a las épocas y no se parece en nada a los géneros.')
-sil_generos = ev[(ev["bloque"] == "Géneros") & (ev["k"] == 2)]["silhouette"].iloc[0]
-st.caption(f"La separación en géneros es modesta (silhouette {h.dec(sil_generos, 3)}): los grupos son "
-           f"tendencias, no categorías cerradas. El modelo conjunto tiene silhouette {h.dec(sil_conjunto, 3)}.")
+    decision(
+        "**K=4 en géneros y K=2 en épocas.** "
+        "Elegimos analizar cuatro grupos de preferencias de géneros, "
+        "aunque su silhouette sea menor. "
+        "Esto permite estudiar patrones más específicos, "
+        "que luego contrastaremos con las afinidades medias "
+        "de cada grupo."
+    )
+
+# RESULTADOS DE SILHOUETTE, CODO Y ESTABILIDAD
+grafico(
+    h.grafico_senales(ev),
+    "Comparación de las medidas de calidad del agrupamiento"
+)
+
+como_leer(
+    "Cada panel representa uno de los dos bloques del modelo. "
+    "El eje horizontal indica la cantidad de grupos (K). "
+    "El codo muestra cuánta dispersión permanece dentro de "
+    "los grupos; silhouette mide su separación y estabilidad "
+    "indica cuánto cambian al entrenar con distintas muestras. "
+    "La banda celeste indica el K que decidimos utilizar."
+)
+
+# COMPARACIÓN FIJA K=2 CONTRA K=4
+st.subheader("¿Qué cambia al pasar de dos a cuatro grupos?")
+
+st.markdown(
+    "Con **K=2**, los usuarios se dividen en dos grandes "
+    "conjuntos de preferencias. Sin embargo, estos grupos pueden "
+    "contener diferencias internas que vale la pena investigar.\n\n"
+    "Para observarlo, comparamos esa división con **K=4**, "
+    "manteniendo el mismo espacio PCA."
+    "En el segundo gráfico mostramos directamente la división en cuatro grupos, "
+    "sobre el mismo espacio PCA. Así podemos comparar cómo cambia la segmentación "
+    "cuando pasamos de una división más simple a otra más detallada."
+)
+
+k2, k4 = h.grafico_k2_k4(particiones)
+
+col_k2, col_k4 = st.columns(2, gap="large")
+
+with col_k2:
+    st.markdown("**K=2 · Mayor separación**")
+    grafico(
+        k2,
+        "Distribución de usuarios agrupados con K=2"
+    )
+
+with col_k4:
+    st.markdown("**K=4 · Mayor detalle**")
+    grafico(
+        k4,
+        "Distribución facetada de los cuatro grupos"
+    )
+
+como_leer(
+    "\n\n"
+    "**→ Izquierda — K=2:** cada punto representa un usuario y su color indica "
+    "el grupo asignado por K-means cuando dividimos a los usuarios en dos conjuntos.\n\n"
+
+    "**→ Derecha — K=4:** cada punto representa un usuario y su color indica "
+    "el grupo asignado por K-means cuando dividimos a los usuarios en cuatro conjuntos.\n\n"
+
+    "**→ Misma base de comparación:** ambos gráficos usan los mismos dos primeros "
+    "componentes principales de géneros, por lo que podemos comparar visualmente "
+    "cómo cambia la partición del mismo espacio.\n\n"
+
+    "**→ Qué observar:** K=2 produce una separación más simple y clara; K=4 agrega "
+    "detalle, aunque los grupos quedan menos separados y se superponen más."
+)
+
+# COMPARACIÓN DE LAS MÉTRICAS
+sil_k2 = ev[
+    (ev["bloque"] == "Géneros") & (ev["k"] == 2)
+]["silhouette"].iloc[0]
+
+sil_k4 = ev[
+    (ev["bloque"] == "Géneros") & (ev["k"] == 4)
+]["silhouette"].iloc[0]
+
+st.markdown(
+    f"**Resultado:** K=2 alcanza una silhouette de "
+    f"**{h.dec(sil_k2, 3)}**, mientras que K=4 alcanza "
+    f"**{h.dec(sil_k4, 3)}**. Por lo tanto, K=4 no mejora "
+    "la separación: lo elegimos para analizar diferencias "
+    "más específicas entre usuarios."
+)
+
+# COMPARACIÓN CON EL MODELO CONJUNTO
+grafico(
+    h.grafico_ari(ari),
+    "Coincidencia entre el modelo conjunto y los modelos separados"
+)
+
+como_leer(
+    "Cada barra indica cuánto coincide el modelo conjunto "
+    "con el agrupamiento de géneros o el de épocas. "
+    "El ARI vale 1 cuando las particiones coinciden "
+    "perfectamente y se aproxima a 0 cuando su coincidencia "
+    "no supera la esperable por azar."
+)
+
 e2, e3 = epocas_por_comp[2], epocas_por_comp[3]
-st.caption(f"En épocas, la silhouette depende de cuántas componentes guarde la PCA: con 3 ("
-           f"{h.dec(e3['varianza'] * 100, 1)} % de la varianza) es {h.dec(e3['silhouette'], 3)} y con 2 ("
-           f"{h.dec(e2['varianza'] * 100, 1)} %) sube a {h.dec(e2['silhouette'], 3)}. Las 2 componentes quedan "
-           "justo en el borde del 80 % que pedimos, así que según la muestra se guardan 2 o 3; los grupos son "
-           "los mismos en los dos casos (ver comparacion_5000_20000.ipynb).")
-with st.expander("Ver los números", icon=":material/table_chart:"):
+
+st.caption(
+    f"En épocas, con 3 componentes PCA se conserva "
+    f"{h.dec(e3['varianza'] * 100, 1)} % de la varianza "
+    f"y la silhouette es {h.dec(e3['silhouette'], 3)}. "
+    f"Con 2 componentes, se conserva "
+    f"{h.dec(e2['varianza'] * 100, 1)} % y la silhouette "
+    f"es {h.dec(e2['silhouette'], 3)}."
+)
+
+with st.expander(
+    "Ver los números",
+    icon=":material/table_chart:"
+):
     c1, c2 = st.columns(2)
-    c1.dataframe(ev.round(3), hide_index=True, alt="Inercia, silhouette y estabilidad por k")
-    c2.dataframe(ari.round(4), hide_index=True, alt="ARI del modelo conjunto")
 
+    c1.dataframe(
+        ev.round(3),
+        hide_index=True,
+        alt="Métricas de K-means para cada cantidad de grupos"
+    )
 
+    c2.dataframe(
+        ari.round(4),
+        hide_index=True,
+        alt="Comparación de agrupamientos mediante ARI"
+    )
 # ---------------------------------------------------------------------------
 # 7 · Los perfiles
 # ---------------------------------------------------------------------------
@@ -469,7 +587,12 @@ st.markdown(
     "lo que mira**. Las dos respuestas no dependen una de la otra, así que cada combinación es un perfil."
 )
 grafico(h.grafico_cruce(cruce, p_chi, v_cramer), "Cruce de los grupos de género y de época")
-como_leer('Cada columna es un grupo de género, y su ancho es cuántos usuarios tiene. Dentro, los dos bloques son el reparto entre los grupos de época, con la cantidad de usuarios y el %. La línea es el reparto de todos los usuarios: si los cortes de las dos columnas caen sobre ella, el género y la época no dependen uno del otro.')
+como_leer(
+    "Cada columna corresponde a un grupo de género y su ancho indica cuántos usuarios tiene. "
+    "Dentro de cada columna, los bloques muestran cómo se reparte ese grupo entre las dos "
+    "categorías de épocas. La cantidad de usuarios y el porcentaje dentro de cada grupo "
+    "aparecen escritos en cada bloque."
+)
 c1, c2 = st.columns(2, gap="large")
 with c1:
     grafico(h.grafico_perfil_generos(perfil_g, orden_g), "Afinidad media por género en cada grupo")
@@ -493,7 +616,7 @@ with der:
             f"La actividad casi no se relaciona con los ejes del modelo (|ρ| ≤ {h.dec(rho.abs().max(), 2)}). "
             f"Hay un matiz: el grupo de drama y crimen califica algo más "
             f"(mediana {h.fmt(medianas[h.GENEROS_GRUPOS[1]])} contra "
-            f"{h.fmt(medianas[h.GENEROS_GRUPOS[0]])}), pero las nubes de los cuatro perfiles se superponen casi por completo."
+            f"{h.fmt(medianas[h.GENEROS_GRUPOS[0]])}), pero las nubes de los ocho perfiles se superponen casi por completo."
         )
 grafico(h.grafico_actividad_perfiles(usuarios, rho),
         "Nube de usuarios por rating promedio y cantidad de ratings, con reparto por perfil")
@@ -713,17 +836,17 @@ def un_usuario():
     # EXPLICACIÓN DE AMBOS GRÁFICOS
     como_leer(
         "\n\n"
-        "- **→ Izquierda — Recomendaciones:** cada barra representa una película "
+        " **→ Izquierda — Recomendaciones:** cada barra representa una película "
         "que el usuario no calificó en nuestros datos. Su longitud indica el "
         "apoyo ponderado de sus 100 vecinos más cercanos: cuanto mayor es "
         "el porcentaje, mayor es el respaldo de usuarios con gustos similares.\n\n"
 
-        "- **→ Derecha — Películas mejor calificadas:** cada barra representa "
+        " **→ Derecha — Películas mejor calificadas:** cada barra representa "
         "una película que el usuario sí calificó. Su longitud muestra la "
         "puntuación que le dio: 5 estrellas equivalen al 100 %, "
         "4 estrellas al 80 %, y así sucesivamente.\n\n"
 
-        "- **→ Misma escala, distinto significado:** ambos gráficos van del "
+        " **→ Misma escala, distinto significado:** ambos gráficos van del "
         "0 al 100 %, pero el izquierdo mide el apoyo de los vecinos y el "
         "derecho la calificación individual. Por eso, los porcentajes "
         "no se comparan directamente.\n\n"
@@ -745,13 +868,6 @@ def un_usuario():
             f"**Control de coincidencias:** {coincidencias} de "
             f"{len(rec)} películas recomendadas aparecen entre las "
             "que este usuario calificó en el conjunto de datos utilizado."
-        )
-
-        st.caption(
-            "MovieLens registra calificaciones, no reproducciones. "
-            "El archivo de trabajo contiene como máximo 500 "
-            "calificaciones por usuario. Por eso, este control no "
-            "demuestra que nunca haya visto esas películas."
         )
 
         # EXPLICACIÓN DE LA CANTIDAD DE RECOMENDACIONES

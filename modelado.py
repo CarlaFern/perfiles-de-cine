@@ -127,8 +127,9 @@ def entrenar_desde_csv(ruta: str) -> Modelos:
         raise ValueError('Muestra de entrenamiento insuficiente')
     G = Pipeline([
         ('preparar', preparar_generos()),
-        ('kmeans', KMeans(n_clusters=2, random_state=SEMILLA, n_init=10)),
+        ('kmeans', KMeans(n_clusters=4, random_state=SEMILLA, n_init=10)),
     ]).fit(D)
+
     E = Pipeline([
         ('preparar', preparar_decadas()),
         ('kmeans', KMeans(n_clusters=2, random_state=SEMILLA, n_init=10)),
@@ -136,21 +137,29 @@ def entrenar_desde_csv(ruta: str) -> Modelos:
     gr = G.predict(D)
     de = E.predict(D)
     # Identificación dinámica basada en perfiles para evitar invertir etiquetas si se reentrena.
-    pref = G['preparar']['features'].transform(D)
-    medias = pref.groupby(gr).mean().T
-    criterio_drama = (medias.loc['pref_Drama'] + medias.loc['pref_Crime']
-                      + medias.loc['pref_History'] + medias.loc['pref_War']
-                      - medias.loc['pref_Animation'] - medias.loc['pref_Family']
-                      - medias.loc['pref_Adventure'] - medias.loc['pref_Fantasy'])
-    id_drama = int(criterio_drama.idxmax())
-    id_aventura = int(criterio_drama.idxmin())
+    # Identificación de los cuatro grupos de géneros, por ahora usamos nombres provisionales.
+    # Después los describiremos según sus afinidades reales.
+    nombre_genero = {
+        int(i): f"Géneros · Grupo {int(i) + 1}"
+        for i in sorted(set(gr))
+    }
+
+    # Mantenemos los dos grupos de épocas.
     dp = (100 * D[COLUMNAS_DECADAS]).groupby(de).mean().T
-    id_reciente = int((dp.loc['prop_2000s'] + dp.loc['prop_2010s']).idxmax())
-    id_clasico = int((dp.loc['prop_2000s'] + dp.loc['prop_2010s']).idxmin())
-    nombre_genero = {id_aventura: 'Animación, familia y aventura',
-                     id_drama: 'Drama, crimen e histórico'}
-    nombre_decada = {id_reciente: 'Cine de 2000–2010',
-                     id_clasico: 'Cine noventero y clásico'}
+
+    id_reciente = int(
+        (dp.loc['prop_2000s'] + dp.loc['prop_2010s']).idxmax()
+    )
+
+    id_clasico = int(
+        (dp.loc['prop_2000s'] + dp.loc['prop_2010s']).idxmin()
+    )
+
+    nombre_decada = {
+        id_reciente: 'Cine de 2000–2010',
+        id_clasico: 'Cine noventero y clásico'
+    }
+
     out = pd.DataFrame({
         'grupo_genero': gr, 'grupo_decada': de,
         'nombre_genero': [nombre_genero[i] for i in gr],
