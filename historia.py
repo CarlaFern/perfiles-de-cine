@@ -1034,6 +1034,9 @@ def tabla_perfil_generos(usuarios):
     cols = [c for c in usuarios.columns if c.startswith("g_")]
     t = usuarios.groupby("nombre_genero")[cols].mean().T
     t.index = [c[2:] for c in t.index]
+    
+    print("COLUMNAS REALES:", t.columns.tolist())
+
     t["diferencia"] = t[GENEROS_GRUPOS[1]] - t[GENEROS_GRUPOS[0]]
     largo = t.drop(columns="diferencia").stack().rename("afinidad").reset_index()
     largo.columns = ["genero", "grupo", "afinidad"]
