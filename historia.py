@@ -33,7 +33,7 @@ APAGADO = "#dcdce2"
 QUEMADO, CHARTREUSE, NAVY, ELECTRICO = "#8b3a26", "#c4a22c", "#3e3f66", "#2b30a3"
 GRIS_VIA, GRIS_NOTA = "#e3e4e8", "#80818f"
 
-GENEROS_GRUPOS = ["Géneros · Grupo 1","Géneros · Grupo 2","Géneros · Grupo 3","Géneros · Grupo 4"] #Aca falta asignar nombre de grupos
+GENEROS_GRUPOS = [ "Drama, historia y bélico", "Crimen, misterio y suspenso", "Animación, familia y fantasía", "Acción, aventura y ciencia ficción"] #Aca falta asignar nombre de grupos
 DECADAS_GRUPOS = ["Cine de 2000–2010", "Cine noventero y clásico"]
 COLOR_GENERO = alt.Scale(domain=GENEROS_GRUPOS,range=[CHARTREUSE, QUEMADO, NAVY, ELECTRICO])
 # los dos grupos de época: electric blue y lavanda. Validado con validate_palette.js de la skill
