@@ -841,9 +841,17 @@ def grafico_k2_k4(particiones):
 
     datos_k2 = particiones[particiones["k"] == 2].copy()
     datos_k4 = particiones[particiones["k"] == 4].copy()
+    mapa_k4 = {
+        "Grupo 1": "Drama, historia y bélico",
+        "Grupo 2": "Crimen, misterio y suspenso",
+        "Grupo 3": "Animación, familia y fantasía",
+        "Grupo 4": "Acción, aventura y ciencia ficción",
+    }
+
+    datos_k4["grupo"] = datos_k4["grupo"].map(mapa_k4)
 
     grupos_2 = ["Grupo 1", "Grupo 2"]
-    grupos_4 = ["Grupo 1", "Grupo 2", "Grupo 3", "Grupo 4"]
+    grupos_4 = list(mapa_k4.values())
 
     escala_x = alt.Scale(
         domain=[
@@ -911,7 +919,12 @@ def grafico_k2_k4(particiones):
                 domain=grupos_4,
                 range=[CHARTREUSE, QUEMADO, NAVY, ELECTRICO]
             ),
-            legend=alt.Legend(orient="right")
+            legend=alt.Legend(
+                orient="bottom",
+                direction="vertical",
+                columns=1,
+                labelLimit=0
+            )
         ),
         tooltip=[
             alt.Tooltip("grupo:N", title="Grupo")
@@ -1052,7 +1065,13 @@ def grafico_perfil_generos(largo, orden):
     puntos = alt.Chart(largo).mark_circle(size=110, opacity=1).encode(
         y=y, x=alt.X("afinidad:Q", title="Afinidad media (respecto del promedio propio)"),
         color=alt.Color("grupo:N", scale=COLOR_GENERO, title=None,
-                        legend=alt.Legend(orient="bottom", labelLimit=320)),
+                        legend=alt.Legend(
+                            orient="bottom",
+                            direction="vertical",
+                            columns=1,
+                            labelLimit=0
+                        )
+                    ),
         tooltip=["genero:N", "grupo:N", alt.Tooltip("afinidad:Q", format="+.3f")])
     cero = alt.Chart(pd.DataFrame({"x": [0]})).mark_rule(color=GRIS, strokeDash=[3, 3]).encode(x="x:Q")
     return (cero + regla + puntos).properties(height=530, title=titulo(
