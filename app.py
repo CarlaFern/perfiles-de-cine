@@ -581,7 +581,7 @@ perfil_g, orden_g = h.tabla_perfil_generos(usuarios)
 perfil_e = h.tabla_perfil_epocas(usuarios)
 rho, medianas = h.pregunta_actividad(usuarios, modelos)
 
-seccion(6, "Los perfiles", "perfiles", "Cuatro perfiles, armados con dos preguntas distintas")
+seccion(6, "Los perfiles", "perfiles", "Ocho perfiles, armados con dos preguntas distintas")
 st.markdown(
     "Un modelo responde **qué géneros le gustan más que su propio promedio**; el otro, **de qué época es "
     "lo que mira**. Las dos respuestas no dependen una de la otra, así que cada combinación es un perfil."
@@ -596,7 +596,11 @@ como_leer(
 c1, c2 = st.columns(2, gap="large")
 with c1:
     grafico(h.grafico_perfil_generos(perfil_g, orden_g), "Afinidad media por género en cada grupo")
-    como_leer('Cada fila es un género. Los dos puntos son la afinidad media de cada grupo de género: a la derecha del 0, el género les gusta más que su propio promedio. La línea une los dos puntos: cuanto más larga, más distinto lo ven los dos grupos. Arriba quedan los géneros que prefiere un grupo; abajo, los del otro.')
+    como_leer(
+        "Cada fila es un género. Los cuatro puntos muestran la afinidad media de cada grupo: "
+        "a la derecha del 0, ese género les gusta más que su propio promedio; a la izquierda, menos. "
+        "La línea une el grupo con menor y mayor afinidad: cuanto más larga, más diferencia hay entre los grupos."
+    )
 with c2:
     grafico(h.grafico_perfil_epocas(perfil_e), "Porcentaje del historial por época en cada grupo")
     como_leer('Para cada época (eje x) hay dos barras, una por grupo de época: qué parte del historial de ese grupo, en promedio, es de películas de esa época. Mide qué ven, no cuánto les gustan.')

@@ -140,8 +140,10 @@ def entrenar_desde_csv(ruta: str) -> Modelos:
     # Identificación de los cuatro grupos de géneros, por ahora usamos nombres provisionales.
     # Después los describiremos según sus afinidades reales.
     nombre_genero = {
-        int(i): f"Géneros · Grupo {int(i) + 1}"
-        for i in sorted(set(gr))
+        0: "Drama, historia y bélico",
+        1: "Crimen, misterio y suspenso",
+        2: "Animación, familia y fantasía",
+        3: "Acción, aventura y ciencia ficción",
     }
 
     # Mantenemos los dos grupos de épocas.

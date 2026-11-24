@@ -233,8 +233,8 @@ def tabla_recorrido(resumen):
         ("Tabla silver", "una fila", "por usuario", "Datos", "paso-silver"),
         ("Afinidad", f"≥ {MIN_RATINGS} ratings,", "promedio amortiguado", "Modelo", "trampa"),
         ("PCA", "géneros y épocas", "por separado", "Modelo", "pca"),
-        ("K-means", "k = 2", "en cada bloque", "Modelo", "grupos"),
-        ("Perfiles", "2 × 2 =", "4 perfiles", "Resultado", "perfiles"),
+        ("K-means", "k = 4 géneros,", "k = 2 épocas", "Modelo", "grupos"),
+        ("Perfiles", "4 × 2 =", "8 perfiles", "Resultado", "perfiles"),
         ("Recomendación", "películas de", "usuarios parecidos", "Resultado", "recomendador"),
     ]
     t = pd.DataFrame(filas, columns=["nombre", "linea1", "linea2", "tramo", "ancla"])
