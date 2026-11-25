@@ -14,12 +14,19 @@ from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 from sklearn.metrics import adjusted_rand_score, silhouette_score
 
-from modelado import (COLUMNAS_DECADAS, MIN_RATINGS, SEMILLA, SUAVIZADO,
+from modelado import (COLUMNAS_DECADAS, MIN_RATINGS, NOMBRES_GRUPOS, SEMILLA, SUAVIZADO,
                       COBERTURA, entrenar_desde_csv, preparar_generos)
 
 # el histograma de la muestra contra MovieLens usa 25.000 filas y Altair corta en 5.000
 # (como en la sección 1.2 de la Unidad 4): cada gráfico recibe sólo las columnas que usa
 alt.data_transformers.disable_max_rows()
+
+
+# números de los ejes en castellano, como en los textos: 0,5 y 5.000 (no 0.5 y 5,000)
+@alt.theme.register("castellano", enable=True)
+def _castellano() -> alt.theme.ThemeConfig:
+    return {"config": {"locale": {"number": {
+        "decimal": ",", "thousands": ".", "grouping": [3], "currency": ["$", ""]}}}}
 
 # ---------------------------------------------------------------------------
 # Colores: un solo canal por dimensión para toda la app
@@ -33,7 +40,7 @@ APAGADO = "#dcdce2"
 QUEMADO, CHARTREUSE, NAVY, ELECTRICO = "#8b3a26", "#c4a22c", "#3e3f66", "#2b30a3"
 GRIS_VIA, GRIS_NOTA = "#e3e4e8", "#80818f"
 
-GENEROS_GRUPOS = [ "Drama, historia y bélico", "Crimen, misterio y suspenso", "Animación, familia y fantasía", "Acción, aventura y ciencia ficción"] #Aca falta asignar nombre de grupos
+GENEROS_GRUPOS = list(NOMBRES_GRUPOS["generos"].values())   # en orden de cluster: 0, 1, 2, 3
 DECADAS_GRUPOS = ["Cine de 2000–2010", "Cine noventero y clásico"]
 COLOR_GENERO = alt.Scale(domain=GENEROS_GRUPOS,range=[CHARTREUSE, QUEMADO, NAVY, ELECTRICO])
 # los dos grupos de época: electric blue y lavanda. Validado con validate_palette.js de la skill
@@ -345,15 +352,15 @@ def grafico_trampa(tabla):
     mapa = {t: [t, f"×{dec(n / (n + SUAVIZADO), 2)}"] for t, n in suave["n_mediana"].items()}
     expr_factor = f"{mapa}[datum.value]".replace("'", '"')
 
-    def panel(version, dominio, cabecera, label_expr=None, titulo_y=None):
+    def panel(version, dominio, cabecera, color, label_expr=None, titulo_y=None):
         d = tabla[tabla["version"] == version]
         x = alt.X("tramo:O", sort=orden, title="Películas del género que calificó el usuario",
                   axis=alt.Axis(labelAngle=0, labelExpr=label_expr) if label_expr
                   else alt.Axis(labelAngle=0))
         y = alt.Y("p05:Q", title=titulo_y, scale=alt.Scale(domain=dominio, nice=False))
         base = alt.Chart(d)
-        banda = base.mark_area(opacity=0.25, color=QUEMADO).encode(x=x, y=y, y2="p95:Q")
-        caja = base.mark_area(opacity=0.5, color=QUEMADO).encode(x=x, y="p25:Q", y2="p75:Q")
+        banda = base.mark_area(opacity=0.25, color=color).encode(x=x, y=y, y2="p95:Q")
+        caja = base.mark_area(opacity=0.5, color=color).encode(x=x, y="p25:Q", y2="p75:Q")
         linea = base.mark_line(color=TEXTO, strokeWidth=1.5).encode(x=x, y="mediana:Q")
         # puntos invisibles: sólo para el tooltip
         tip = base.mark_point(opacity=0, size=400).encode(
@@ -367,17 +374,17 @@ def grafico_trampa(tabla):
                      alt.Tooltip("p95:Q", title="Percentil 95", format="+.2f")])
         cero = base.mark_rule(color=GRIS, strokeDash=[3, 3]).encode(y=alt.datum(0))
         return alt.layer(banda, caja, linea, tip, cero).properties(
-            width=440, height=260,
+            width=390, height=260,
             title=alt.Title(cabecera[0], subtitle=cabecera[1], anchor="start", fontSize=13,
                             fontWeight="normal", color=TEXTO, subtitleColor=GRIS_CLARO,
                             subtitleFontSize=11))
 
     izq = panel("Promedio crudo", [-2.5, 2],
-                ["Promedio crudo", ["Escala de −2,5 a +2", " "]],
+                ["Promedio crudo", ["Escala de −2,5 a +2", " "]], GRIS,
                 titulo_y="Promedio del género − promedio propio")
     der = panel(amort, [-tope, tope],
                 [amort, [f"Escala ampliada ×{dec(zoom, 0)} (de −{dec(tope)} a +{dec(tope)})",
-                         "Solo se aleja de cero quien vio muchas películas del género"]],
+                         "Solo se aleja de cero quien vio muchas películas del género"]], QUEMADO,
                 label_expr=expr_factor)
     return alt.hconcat(izq, der, spacing=40).resolve_scale(y="independent").properties(title=titulo(
         f"Con una sola película, el «gusto» por un género varía {dec(ancho_1 / ancho_50, 0)} veces más "
@@ -705,14 +712,14 @@ def grafico_fanaticos(usuarios):
     circulos = alt.Chart(datos).transform_filter(genero).mark_point(
         filled=False, color=QUEMADO, strokeWidth=1.6).encode(
         x=x, y=y, size=alt.Size("count():Q", title="Usuarios del género elegido",
-                                scale=alt.Scale(range=[8, 260]), legend=alt.Legend(orient="top")))
+                                scale=alt.Scale(range=[8, 260]), legend=alt.Legend(orient="top", titleLimit=0)))
     barras = alt.Chart(datos).mark_bar(cornerRadiusEnd=3).encode(
         x=alt.X("genero_afin:N", sort="-y", title="Género con más afinidad", axis=alt.Axis(labelAngle=-40)),
         y=alt.Y("count():Q", title="Usuarios"),
         color=alt.condition(genero, alt.value(ELECTRICO), alt.value(APAGADO)),
         tooltip=[alt.Tooltip("genero_afin:N", title="Género"), alt.Tooltip("count():Q", title="Usuarios")],
-    ).add_params(genero).properties(height=190)
-    return alt.vconcat((calor + circulos).properties(height=360), barras).resolve_legend(
+    ).add_params(genero).properties(width=760, height=190)
+    return alt.vconcat((calor + circulos).properties(width=760, height=360), barras).resolve_legend(
         color="independent", size="independent").properties(title=titulo(
             "Cada género tiene su zona en el espacio de géneros",
             "Clic en una barra: los círculos muestran dónde están esos usuarios. Doble clic para volver."))
@@ -799,7 +806,8 @@ def grafico_senales(evaluacion):
     x = alt.X("k:Q", title="Cantidad de grupos (k)", scale=escala_x,
               axis=alt.Axis(values=[2, 3, 4, 5, 6], format="d", grid=False))
     y = alt.Y("valor:Q", title=None, scale=alt.Scale(domain=[0, 1]),
-              axis=alt.Axis(values=[0, 0.25, 0.5, 0.75, 1], gridColor="#e3e4e8", domain=False, ticks=False))
+              axis=alt.Axis(values=[0, 0.25, 0.5, 0.75, 1], format=".2~f", gridColor="#e3e4e8",
+                                domain=False, ticks=False))
 
     def panel(bloque):
         datos = largo[largo["bloque"] == bloque]
@@ -841,12 +849,8 @@ def grafico_k2_k4(particiones):
     panel se estira por separado, Vega achica el área de dibujo para hacer lugar a
     la leyenda y a los títulos de dos renglones, y la nube queda aplastada.
     """
-    mapa_k4 = {
-        "Grupo 1": "Drama, historia y bélico",
-        "Grupo 2": "Crimen, misterio y suspenso",
-        "Grupo 3": "Animación, familia y fantasía",
-        "Grupo 4": "Acción, aventura y ciencia ficción",
-    }
+    # «Grupo i» es el cluster i − 1: el mismo K-means que el del modelo, con la misma semilla
+    mapa_k4 = {f"Grupo {c + 1}": nombre for c, nombre in NOMBRES_GRUPOS["generos"].items()}
     datos_k2 = particiones[particiones["k"] == 2].copy()
     datos_k4 = particiones[particiones["k"] == 4].copy()
     datos_k4["grupo"] = datos_k4["grupo"].map(mapa_k4)
@@ -861,10 +865,10 @@ def grafico_k2_k4(particiones):
         return alt.Chart(datos).mark_circle(size=14, opacity=0.5).encode(
             x=x, y=y,
             color=alt.Color("grupo:N", title=None, scale=alt.Scale(domain=grupos, range=colores),
-                            legend=alt.Legend(orient="top", direction="horizontal", columns=2,
-                                              labelLimit=0, symbolOpacity=1, columnPadding=16)),
+                            legend=alt.Legend(orient="top", direction="vertical",
+                                              labelLimit=0, symbolOpacity=1)),
             tooltip=[alt.Tooltip("grupo:N", title="Grupo")],
-        ).properties(width=440, height=340, title=alt.Title(nombre, anchor="start", fontSize=13))
+        ).properties(width=370, height=330, title=alt.Title(nombre, anchor="start", fontSize=13))
 
     k2 = panel(datos_k2, "K=2 · Mayor separación", ["Grupo 1", "Grupo 2"], [EPOCA_RECIENTE, QUEMADO])
     k4 = panel(datos_k4, "K=4 · Mayor detalle", list(mapa_k4.values()),
@@ -944,7 +948,8 @@ def grafico_cruce(largo, p, v):
     t["x1"] = t["nombre_genero"].map(x1)
     t["xm"] = (t["x0"] + t["x1"]) / 2
     t["ym"] = (t["y0"] + t["y1"]) / 2
-    t["bloque"] = [f"{fmt(u)} usuarios · {dec(q * 100, 0)} %" for u, q in zip(t["usuarios"], t["parte"])]
+    # en dos renglones: en una sola línea no entraba en la columna angosta del grupo más chico
+    t["bloque"] = [f"{fmt(u)} usuarios|{dec(q * 100, 0)} %" for u, q in zip(t["usuarios"], t["parte"])]
     # texto dentro del bloque: blanco sobre el azul oscuro, tinta sobre el lavanda
     t["tinta"] = t["nombre_decada"].map({DECADAS_GRUPOS[0]: "#ffffff", DECADAS_GRUPOS[1]: TEXTO})
     
@@ -975,7 +980,7 @@ def grafico_cruce(largo, p, v):
                  alt.Tooltip("nombre_decada:N", title="Grupo por época"),
                  alt.Tooltip("usuarios:Q", title="Usuarios", format=","),
                  alt.Tooltip("parte:Q", title="% del grupo de género", format=".1%")])
-    rotulos = alt.Chart(t).mark_text(fontSize=12, fontWeight=600).encode(
+    rotulos = alt.Chart(t).mark_text(fontSize=12, fontWeight=600, lineBreak="|").encode(
         x="xm:Q", y="ym:Q", text="bloque:N", color=alt.Color("tinta:N", scale=None))
     cabecera = alt.Chart(cabeceras).mark_text(fontSize=12, color=GRIS, baseline="bottom").encode(
         x="xm:Q", y=alt.datum(1.1), text="cabecera:N")
@@ -985,7 +990,7 @@ def grafico_cruce(largo, p, v):
             "Los grupos de género se reparten de forma parecida entre las épocas",
             [
                 "Cada columna es un grupo de género y su ancho indica cuántos usuarios tiene.",
-                f"Test χ²: p = {dec(p, 2)} · V de Cramér = {dec(v, 3)}: género y época describen dimensiones distintas."
+                f"Test χ²: p {'< 0,001' if p < 0.001 else '= ' + dec(p, 3)} · V de Cramér = {dec(v, 3)}: género y época describen dimensiones distintas."
             ]
         )
     )
@@ -1153,7 +1158,7 @@ def grafico_copa(usuarios, espacio, minimo):
         tooltip=[alt.Tooltip("userId:N", title="Usuario"), alt.Tooltip("perfil:N", title="Perfil"),
                  alt.Tooltip("cantidad_valoraciones_total:Q", title="Ratings", format=","),
                  alt.Tooltip("genero_afin:N", title="Género con más afinidad")],
-    ).add_params(elegido, brush).properties(width=520, height=440)
+    ).add_params(elegido, brush).properties(width=450, height=440)
 
     largo = alt.Chart(datos).transform_fold(cols, as_=["variable", "valor"]).transform_calculate(
         nombre="substring(datum.variable, 2)")
@@ -1168,7 +1173,7 @@ def grafico_copa(usuarios, espacio, minimo):
     todos = largo.mark_tick(color=TEXTO, thickness=2, size=16).encode(
         y=alt.Y("nombre:N", sort=orden), x="mean(valor):Q")
     panel = (barras + todos).properties(width=300, height=440, title=alt.Title(
-        "Perfil de la selección", subtitle="Barra: usuarios marcados · raya blanca: todos",
+        "Perfil de la selección", subtitle="Barra: usuarios marcados · raya negra: todos",
         anchor="start", fontSize=14, subtitleColor=GRIS_CLARO))
     return alt.hconcat(nube, panel, spacing=30), len(datos)
 
@@ -1465,11 +1470,11 @@ def grafico_afinidades_usuario(fila):
     cols = [c for c in fila.index if c.startswith("g_")]
     t = pd.DataFrame({"genero": [c[2:] for c in cols], "afinidad": fila[cols].astype(float).to_numpy()})
     return alt.Chart(t).mark_bar(cornerRadiusEnd=2).encode(
-        y=alt.Y("genero:N", sort="-x", title=None),
+        y=alt.Y("genero:N", sort="-x", title=None, axis=alt.Axis(labelOverlap=False)),
         x=alt.X("afinidad:Q", title="Afinidad (respecto de su propio promedio)"),
         color=alt.condition(alt.datum.afinidad > 0, alt.value(QUEMADO), alt.value(GRIS)),
         tooltip=["genero:N", alt.Tooltip("afinidad:Q", format="+.3f")],
-    ).properties(height=380, title=alt.Title("Sus afinidades por género", anchor="start", fontSize=14))
+    ).properties(height=380, title=alt.Title("Sus afinidades por género", anchor="start", fontSize=14, limit=0))
 
 
 def grafico_epocas_usuario(fila):
@@ -1479,4 +1484,4 @@ def grafico_epocas_usuario(fila):
         x=alt.X("epoca:N", sort=ORDEN_EPOCAS, title=None, axis=alt.Axis(labelAngle=0)),
         y=alt.Y("pct:Q", title="% de su historial"),
         tooltip=["epoca:N", alt.Tooltip("pct:Q", format=".1f")],
-    ).properties(height=380, title=alt.Title("Su historial según época de estreno", anchor="start", fontSize=14))
+    ).properties(height=380, title=alt.Title("Su historial según época de estreno", anchor="start", fontSize=14, limit=0))

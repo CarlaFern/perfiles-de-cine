@@ -188,7 +188,9 @@ with der:
     with st.container(horizontal=True):
         st.metric("Votos", h.fmt(R["ratings_total"]), border=True)
         st.metric("Usuarios", h.fmt(R["usuarios_total"]), border=True)
-        st.metric("Películas", h.fmt(R["peliculas_total"]), border=True)
+        st.metric("Películas con votos", h.fmt(R["peliculas_total"]), border=True,
+                  help="Películas distintas en ratings.csv. El catálogo (movies.csv) tiene más, "
+                       "pero algunas no tienen ningún voto.")
 
 st.subheader("Paso 2 · A quién miramos", anchor="paso-muestra")
 izq, der = st.columns([3, 2], gap="large")
@@ -613,13 +615,13 @@ with der:
         st.markdown(
             ":blue[:material/search: **Lo que encontramos**]  \n"
             f"La actividad casi no se relaciona con los ejes del modelo (|ρ| ≤ {h.dec(rho.abs().max(), 2)}). "
-            f"Hay un matiz: el grupo de drama y crimen califica algo más "
-            f"(mediana {h.fmt(medianas[h.GENEROS_GRUPOS[1]])} contra "
-            f"{h.fmt(medianas[h.GENEROS_GRUPOS[0]])}), pero las nubes de los ocho perfiles se superponen casi por completo."
+            f"Hay un matiz: el grupo que más califica tiene una mediana de "
+            f"{h.fmt(medianas[h.GENEROS_GRUPOS].max())} ratings y el que menos, de "
+            f"{h.fmt(medianas[h.GENEROS_GRUPOS].min())}, pero las nubes de los ocho perfiles se superponen casi por completo."
         )
 st.altair_chart(h.grafico_actividad_perfiles(usuarios, rho), width="content",
                 alt="Nube de usuarios por rating promedio y cantidad de ratings, con reparto por perfil")
-como_leer('Cada círculo hueco es un usuario: su rating promedio (eje x) y cuántas películas calificó (eje y, en escala logarítmica). El color es su perfil. Arrastrá sobre la nube para marcar una zona: las barras muestran cómo se reparten los marcados entre los cuatro perfiles. Si los perfiles fueran «mucha actividad» contra «poca», el reparto cambiaría mucho al marcar arriba o abajo de la nube.')
+como_leer('Cada círculo hueco es un usuario: su rating promedio (eje x) y cuántas películas calificó (eje y, en escala logarítmica). El color es su perfil. Arrastrá sobre la nube para marcar una zona: las barras muestran cómo se reparten los marcados entre los ocho perfiles. Si los perfiles fueran «mucha actividad» contra «poca», el reparto cambiaría mucho al marcar arriba o abajo de la nube.')
 with st.expander("Ver los números", icon=":material/table_chart:"):
     c1, c2, c3 = st.columns(3)
     c1.dataframe(cruce, hide_index=True, alt="Usuarios por perfil combinado")
@@ -639,10 +641,8 @@ st.markdown(
     "Elegí un género abajo para ver dónde están los usuarios a los que más les gusta."
 )
 
-grafico(
-    h.grafico_fanaticos(usuarios),
-    "Mapa de calor del espacio de géneros con los usuarios de cada género resaltados"
-)
+st.altair_chart(h.grafico_fanaticos(usuarios), width="content",
+                alt="Mapa de calor del espacio de géneros con los usuarios de cada género resaltados")
 
 como_leer(
     'Arriba, el plano de los dos primeros ejes de géneros dividido en celdas: cuanto más oscura la celda, '

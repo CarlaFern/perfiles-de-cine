@@ -24,9 +24,16 @@ COLUMNAS_DECADAS = [
     "prop_antes_1980", "prop_1980s", "prop_1990s", "prop_2000s",
     "prop_2010s", "prop_2020_mas",
 ]
+# Nombres de los cuatro grupos de géneros, por número de cluster de K-means (random_state fijo).
+# Salen de la afinidad media de cada grupo (historia.tabla_perfil_generos): si se reentrena con
+# otros datos o semilla, hay que volver a mirar esa tabla, porque el número de cada cluster cambia.
 NOMBRES_GRUPOS = {
-    "generos": {0: "Animación, familia y aventura", 1: "Drama, crimen e histórico"},
-    "decadas": {0: "Cine de 2000–2010", 1: "Cine noventero y clásico"},
+    "generos": {
+        0: "Drama, historia y bélico",       # drama +0,19, historia +0,15, bélico +0,14
+        1: "Sin preferencias marcadas",      # todas las afinidades entre −0,10 y +0,06
+        2: "Animación, familia y fantasía",  # animación +0,15, familia +0,10; rechaza terror
+        3: "Crimen, misterio y suspenso",    # crimen +0,19, suspenso +0,16, misterio +0,15; rechaza familia
+    },
 }
 
 
@@ -136,15 +143,7 @@ def entrenar_desde_csv(ruta: str) -> Modelos:
     ]).fit(D)
     gr = G.predict(D)
     de = E.predict(D)
-    # Identificación dinámica basada en perfiles para evitar invertir etiquetas si se reentrena.
-    # Identificación de los cuatro grupos de géneros, por ahora usamos nombres provisionales.
-    # Después los describiremos según sus afinidades reales.
-    nombre_genero = {
-        0: "Drama, historia y bélico",
-        1: "Crimen, misterio y suspenso",
-        2: "Animación, familia y fantasía",
-        3: "Acción, aventura y ciencia ficción",
-    }
+    nombre_genero = NOMBRES_GRUPOS["generos"]
 
     # Mantenemos los dos grupos de épocas.
     dp = (100 * D[COLUMNAS_DECADAS]).groupby(de).mean().T
