@@ -891,6 +891,41 @@ def un_usuario():
 
 un_usuario()
 
+
+with st.container(border=True):
+    st.markdown(
+        ":blue[:material/info: **Limitaciones y alcance del proyecto**]"
+    )
+
+    st.markdown(
+        "**1. Trabajamos con una muestra limitada.**\n\n"
+        "De los 200.948 usuarios de MovieLens, seleccionamos 5.000, "
+        "con un máximo de 500 calificaciones por persona. Finalmente, "
+        "3.503 usuarios cumplieron los requisitos del modelo. "
+        "También limitamos la consulta a TMDB a las 10.000 películas "
+        "más vistas de la muestra, por lo que los resultados no "
+        "representan necesariamente a todos los espectadores y películas.\n\n"
+
+        "**2. Los usuarios nuevos quedan afuera.**\n\n"
+        "El modelo exige al menos 150 calificaciones para construir "
+        "perfiles suficientemente respaldados. Esto reduce el ruido "
+        "de historiales pequeños, pero impide recomendar a usuarios "
+        "con pocas valoraciones, como alguien que calificó solamente "
+        "20 películas .\n\n"
+
+        "**3. Las épocas no necesariamente reflejan preferencias.**\n\n"
+        "Analizamos qué proporción del historial corresponde a cada "
+        "época de estreno, pero tener más películas calificadas de "
+        "una década no significa necesariamente preferirla.\n\n"
+
+        "**4. No podemos garantizar que una película no haya sido vista.**\n\n"
+        "MovieLens registra calificaciones, no reproducciones. "
+        "El recomendador excluye las películas ya calificadas en los "
+        "datos disponibles, pero no puede saber si el usuario vio "
+        "otras películas sin calificarlas."
+    )
+
+
 st.space("medium")
 st.caption(
     f"Fuente: MovieLens 32M · {h.fmt(act['usuarios'])} usuarios al azar con ≥ 100 ratings (random_state 42) · "
