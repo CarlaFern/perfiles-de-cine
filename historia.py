@@ -1025,7 +1025,7 @@ def tabla_perfil_epocas(usuarios):
     largo = t.stack().rename("pct").reset_index()
     largo.columns = ["grupo", "epoca", "pct"]
     return largo
-
+ 
 
 def grafico_perfil_epocas(largo):
     x = alt.X("epoca:N", sort=ORDEN_EPOCAS, title="Época de estreno", axis=alt.Axis(labelAngle=0))
