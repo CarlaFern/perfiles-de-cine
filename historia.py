@@ -1006,28 +1006,33 @@ def tabla_perfil_generos(usuarios):
     return largo, t["diferencia"].sort_values()
 
 
+def grafico_perfiles(perfil_g, orden_g, perfil_e):
+    """
+    Perfil de género (izquierda) y de época (derecha) de los grupos, como un solo gráfico.
+
+    Va en una pieza con tamaño fijo, como K=2 contra K=4: estirados cada uno en su columna,
+    Vega achicaba el área de dibujo para hacer lugar a la leyenda y a los títulos largos.
+    """
+    return alt.hconcat(grafico_perfil_generos(perfil_g, orden_g), grafico_perfil_epocas(perfil_e),
+                       # margen: Vega no cuenta del todo «Ciencia ficción» ni el título largo de épocas
+                       spacing=45, padding={"left": 16, "top": 5, "right": 40, "bottom": 5}
+                       ).resolve_scale(color="independent").configure_view(stroke=None)
+
+
 def grafico_perfil_generos(largo, orden):
     y = alt.Y("genero:N", sort=list(orden.index), title=None, axis=alt.Axis(labelOverlap=False))
     regla = alt.Chart(largo).mark_rule(color=GRIS, strokeWidth=2).encode(
         y=y, x="min(afinidad):Q", x2="max(afinidad):Q")
-    puntos = alt.Chart(largo).mark_circle(size=110, opacity=1).encode(
+    puntos = alt.Chart(largo).mark_circle(size=90, opacity=1).encode(
         y=y, x=alt.X("afinidad:Q", title="Afinidad media (respecto del promedio propio)"),
         color=alt.Color("grupo:N", scale=COLOR_GENERO, title=None,
-                        legend=alt.Legend(
-                            orient="bottom",
-                            direction="vertical",
-                            columns=1,
-                            labelLimit=0
-                        )
-                    ),
+                        legend=alt.Legend(orient="top", direction="vertical", labelLimit=0)),
         tooltip=["genero:N", "grupo:N", alt.Tooltip("afinidad:Q", format="+.3f")])
     cero = alt.Chart(pd.DataFrame({"x": [0]})).mark_rule(color=GRIS, strokeDash=[3, 3]).encode(x="x:Q")
-    return (cero + regla + puntos).properties(height=530, title=titulo(
-        "Los cuatro grupos tienen perfiles de género distintos",
-        [
-            "Cada punto es la afinidad media de un grupo.",
-            "Los géneros están ordenados según cuánto se diferencian los cuatro grupos."
-        ]))
+    return (cero + regla + puntos).properties(width=320, height=400, title=titulo(
+        ["Los cuatro grupos tienen", "perfiles de género distintos"],
+        ["Cada punto es la afinidad media de un grupo. Los géneros",
+         "están ordenados según cuánto se diferencian los grupos."]))
 
 
 def tabla_perfil_epocas(usuarios):
@@ -1040,14 +1045,17 @@ def tabla_perfil_epocas(usuarios):
  
 
 def grafico_perfil_epocas(largo):
-    x = alt.X("epoca:N", sort=ORDEN_EPOCAS, title="Época de estreno", axis=alt.Axis(labelAngle=0))
+    # «Antes de 1980» en dos renglones, para que no tape a «1980s» en un panel angosto
+    x = alt.X("epoca:N", sort=ORDEN_EPOCAS, title="Época de estreno", axis=alt.Axis(
+        labelAngle=0, labelOverlap=False,
+        labelExpr="datum.label == 'Antes de 1980' ? ['Antes de', '1980'] : datum.label"))
     return alt.Chart(largo).mark_bar(cornerRadiusEnd=2).encode(
         x=x, xOffset=alt.XOffset("grupo:N", sort=DECADAS_GRUPOS),
         y=alt.Y("pct:Q", title="% del historial (promedio del grupo)"),
         color=alt.Color("grupo:N", scale=COLOR_DECADA, title=None,
-                        legend=alt.Legend(orient="bottom", labelLimit=320)),
+                        legend=alt.Legend(orient="top", direction="horizontal", columns=1, labelLimit=0)),
         tooltip=["grupo:N", "epoca:N", alt.Tooltip("pct:Q", format=".1f")],
-    ).properties(height=470, title=titulo(
+    ).properties(width=300, height=400, title=titulo(
         ["Un grupo ve sobre todo cine de los 2000 y 2010;", "el otro, de los 90 para atrás"],
         ["Mide qué hay en el historial,", "no qué época le gusta más a cada uno."]))
 
@@ -1083,36 +1091,37 @@ def grafico_actividad_perfiles(usuarios, rho):
         range=colores_perfiles
     )
     zona = alt.selection_interval()
-    perfil = alt.selection_point(fields=["perfil"], bind="legend")
+    # sin leyenda: las barras ya nombran cada perfil con su color, y un clic en una barra lo resalta
+    # (la leyenda de ocho renglones largos le comía el lugar a la nube)
+    perfil = alt.selection_point(fields=["perfil"])
     nube = alt.Chart(datos).mark_point(filled=False, size=28, strokeWidth=1.1, clip=True).encode(
         x=alt.X("rating_promedio_general:Q", title="Rating promedio del usuario", scale=alt.Scale(domain=[1, 5])),
         y=alt.Y("cantidad_valoraciones_total:Q", title="Ratings por usuario (escala log)",
                 scale=alt.Scale(type="log")),
-        color=alt.condition(zona, alt.Color("perfil:N", scale=escala, title=None,
-                                             legend=alt.Legend(
-                                            orient="top",
-                                            direction="vertical",
-                                            columns=2,
-                                            labelLimit=0)),
-                            alt.value(APAGADO)),
+        color=alt.condition(zona, alt.Color("perfil:N", scale=escala, legend=None), alt.value(APAGADO)),
         opacity=alt.condition(perfil, alt.value(0.8), alt.value(0.05)),
         tooltip=[alt.Tooltip("userId:N", title="Usuario"), alt.Tooltip("perfil:N", title="Perfil"),
                  alt.Tooltip("rating_promedio_general:Q", format=".2f", title="Promedio"),
                  alt.Tooltip("cantidad_valoraciones_total:Q", title="Ratings", format=",")],
-    ).add_params(zona, perfil).properties(height=420)
+    ).add_params(zona).properties(width=420, height=400)
     conteo = alt.Chart(datos).transform_filter(zona).transform_aggregate(
         n="count()", groupby=["perfil"]).transform_joinaggregate(total="sum(n)").transform_calculate(
-        pct="datum.n / datum.total").mark_bar(cornerRadiusEnd=3).encode(
-        y=alt.Y("perfil:N", title=None, sort=perfiles, axis=alt.Axis(labelLimit=0)),
+        pct="datum.n / datum.total").mark_bar(cornerRadiusEnd=3, cursor="pointer").encode(
+        # el rótulo en dos renglones (grupo de género / grupo de época) para no robarle ancho a la nube
+        y=alt.Y("perfil:N", title=None, sort=perfiles,
+                axis=alt.Axis(labelLimit=0, labelExpr="split(datum.label, ' · ')")),
         x=alt.X("pct:Q", title="% de los usuarios marcados", scale=alt.Scale(domain=[0, 0.5]),
                 axis=alt.Axis(format="%")),
         color=alt.Color("perfil:N", scale=escala, legend=None),
+        opacity=alt.condition(perfil, alt.value(1), alt.value(0.3)),
         tooltip=[alt.Tooltip("perfil:N", title="Perfil"), alt.Tooltip("n:Q", title="Usuarios"),
-                 alt.Tooltip("pct:Q", title="%", format=".1%")]).properties(height=420, width=230)
-    return alt.hconcat(nube, conteo).properties(title=titulo(
+                 alt.Tooltip("pct:Q", title="%", format=".1%")]).add_params(perfil).properties(
+        width=140, height=400)
+    return alt.hconcat(nube, conteo, spacing=30).properties(title=titulo(
         "Los perfiles no son «los que califican mucho» contra «los que califican poco»",
         [f"La actividad casi no se relaciona con los ejes del modelo (|ρ| ≤ {dec(rho.abs().max(), 2)}).",
-         "Arrastrá sobre la nube para marcar una zona: el reparto entre perfiles casi no cambia."]))
+         "Arrastrá sobre la nube para marcar una zona: el reparto entre perfiles casi no cambia. "
+         "Clic en una barra para resaltar ese perfil."])).configure_view(stroke=None)
 
 
 # ---------------------------------------------------------------------------
@@ -1419,6 +1428,20 @@ def grafico_favoritas(favoritas):
 
 
 
+def grafico_usuario_espacios(usuarios, usuario, vecinos):
+    """
+    El usuario y sus vecinos en el espacio de géneros y en el de épocas, como un solo gráfico.
+
+    Va en una pieza con tamaño fijo, como K=2 contra K=4: estirado en una columna, Vega achicaba
+    el área de dibujo para que entrara el título del eje y (dos renglones, vertical) y la nube
+    quedaba como una raya.
+    """
+    return alt.hconcat(
+        grafico_usuario_en_espacio(usuarios, usuario, vecinos, "Géneros"),
+        grafico_usuario_en_espacio(usuarios, usuario, vecinos, "Épocas"),
+        spacing=50).configure_view(stroke=None)
+
+
 def grafico_usuario_en_espacio(usuarios, usuario, vecinos, espacio):
     px, py = ("G_PC1", "G_PC2") if espacio == "Géneros" else ("D_PC1", "D_PC2")
     d = usuarios[["userId", px, py]].rename(columns={px: "x", py: "y"}).copy()
@@ -1435,7 +1458,7 @@ def grafico_usuario_en_espacio(usuarios, usuario, vecinos, espacio):
         size=alt.Size("tipo:N", scale=alt.Scale(domain=escala.domain, range=[14, 90, 200]), legend=None),
         order=alt.Order("orden:Q"),
         tooltip=[alt.Tooltip("userId:N", title="Usuario"), "tipo:N"],
-    ).properties(height=360, title=alt.Title(f"Espacio de {espacio.lower()}", anchor="start", fontSize=14))
+    ).properties(width=370, height=320, title=alt.Title(f"Espacio de {espacio.lower()}", anchor="start", fontSize=14))
 
 
 def grafico_afinidades_usuario(fila):

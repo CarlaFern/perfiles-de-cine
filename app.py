@@ -588,16 +588,16 @@ como_leer(
     "categorías de épocas. La cantidad de usuarios y el porcentaje dentro de cada grupo "
     "aparecen escritos en cada bloque."
 )
+st.altair_chart(h.grafico_perfiles(perfil_g, orden_g, perfil_e), width="content",
+                alt="Afinidad media por género y porcentaje del historial por época en cada grupo")
 c1, c2 = st.columns(2, gap="large")
 with c1:
-    grafico(h.grafico_perfil_generos(perfil_g, orden_g), "Afinidad media por género en cada grupo")
     como_leer(
         "Cada fila es un género. Los cuatro puntos muestran la afinidad media de cada grupo: "
         "a la derecha del 0, ese género les gusta más que su propio promedio; a la izquierda, menos. "
         "La línea une el grupo con menor y mayor afinidad: cuanto más larga, más diferencia hay entre los grupos."
     )
 with c2:
-    grafico(h.grafico_perfil_epocas(perfil_e), "Porcentaje del historial por época en cada grupo")
     como_leer('Para cada época (eje x) hay dos barras, una por grupo de época: qué parte del historial de ese grupo, en promedio, es de películas de esa época. Mide qué ven, no cuánto les gustan.')
 
 st.subheader("¿Gustos distintos, o gente que califica más y gente que califica menos?")
@@ -617,8 +617,8 @@ with der:
             f"(mediana {h.fmt(medianas[h.GENEROS_GRUPOS[1]])} contra "
             f"{h.fmt(medianas[h.GENEROS_GRUPOS[0]])}), pero las nubes de los ocho perfiles se superponen casi por completo."
         )
-grafico(h.grafico_actividad_perfiles(usuarios, rho),
-        "Nube de usuarios por rating promedio y cantidad de ratings, con reparto por perfil")
+st.altair_chart(h.grafico_actividad_perfiles(usuarios, rho), width="content",
+                alt="Nube de usuarios por rating promedio y cantidad de ratings, con reparto por perfil")
 como_leer('Cada círculo hueco es un usuario: su rating promedio (eje x) y cuántas películas calificó (eje y, en escala logarítmica). El color es su perfil. Arrastrá sobre la nube para marcar una zona: las barras muestran cómo se reparten los marcados entre los cuatro perfiles. Si los perfiles fueran «mucha actividad» contra «poca», el reparto cambiaría mucho al marcar arriba o abajo de la nube.')
 with st.expander("Ver los números", icon=":material/table_chart:"):
     c1, c2, c3 = st.columns(3)
@@ -729,13 +729,8 @@ def un_usuario():
             st.badge(fila["nombre_genero"], icon=":material/theater_comedy:", color="orange")
             st.badge(fila["nombre_decada"], icon=":material/calendar_month:", color="blue")
 
-    c1, c2 = st.columns(2, gap="large")
-    with c1:
-        grafico(h.grafico_usuario_en_espacio(usuarios, usuario, vecinos, "Géneros"),
-                "Posición del usuario en el espacio de géneros")
-    with c2:
-        grafico(h.grafico_usuario_en_espacio(usuarios, usuario, vecinos, "Épocas"),
-                "Posición del usuario en el espacio de épocas")
+    st.altair_chart(h.grafico_usuario_espacios(usuarios, usuario, vecinos), width="content",
+                    alt="Posición del usuario y sus vecinos en el espacio de géneros y en el de épocas")
     como_leer("Cada punto gris es un usuario, en los dos primeros ejes de cada espacio. En burnt orange está el "
               "usuario elegido y en chartreuse, sus 5 más parecidos. Ojo: los parecidos se buscan con todos los "
               "ejes (8 de géneros y 3 de épocas), así que en este plano de dos ejes pueden verse algo separados.")
