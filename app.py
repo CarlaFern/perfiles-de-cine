@@ -4,17 +4,27 @@ Una sola página que se recorre de arriba hacia abajo: primero la historia del
 proyecto (el tallo de la copa de martini) y al final la parte para explorar
 (la copa). El índice del costado salta a cada sección.
 """
+import hashlib
 import importlib
+from pathlib import Path
 
 import pandas as pd
 import streamlit as st
 
 import historia as h
+import modelado
 
-# Streamlit Cloud, al actualizar la app, vuelve a correr este archivo pero puede seguir usando la
-# versión vieja de historia.py que tenía en memoria (pasó al cambiar tabla_umbral). Recargarlo en
-# cada corrida cuesta milisegundos y asegura que app.py e historia.py sean siempre de la misma versión.
+# Streamlit Cloud, al actualizar la app, vuelve a correr este archivo pero puede seguir usando las
+# versiones viejas de modelado.py e historia.py que tenía en memoria (pasó al cambiar tabla_umbral y
+# al renombrar los grupos). Se recargan en cada corrida, primero modelado.py porque historia.py
+# importa de ahí; cuesta milisegundos y asegura que los tres archivos sean de la misma versión.
+modelado = importlib.reload(modelado)
 h = importlib.reload(h)
+
+# La caché tampoco se entera de esos cambios: guardaría el modelo entrenado con el código anterior
+# (por ejemplo, con los nombres viejos de los grupos). Por eso cada función cacheada recibe la
+# versión del código, y si modelado.py o historia.py cambian, se vuelve a calcular.
+VERSION = hashlib.sha1(b"".join((Path(__file__).parent / f).read_bytes() for f in ("modelado.py", "historia.py"))).hexdigest()
 
 st.set_page_config(page_title="Perfiles de cine", page_icon=":material/movie:", layout="wide")
 
@@ -23,11 +33,11 @@ st.set_page_config(page_title="Perfiles de cine", page_icon=":material/movie:", 
 # Datos y cálculos (se hacen una vez y quedan en caché)
 # ---------------------------------------------------------------------------
 @st.cache_resource(show_spinner="Entrenando los modelos…")
-def cargar():
+def cargar(version):
     return h.cargar_todo()
 
 
-silver, modelos, ratings, peliculas = cargar()
+silver, modelos, ratings, peliculas = cargar(VERSION)
 
 
 @st.cache_data
@@ -39,27 +49,27 @@ origen = cargar_origen()
 
 
 @st.cache_data
-def usuarios_tabla():
+def usuarios_tabla(version):
     return h.tabla_usuarios(modelos, silver)
 
 
 @st.cache_resource
-def espacios():
+def espacios(version):
     return h.espacios(modelos)
 
 
 @st.cache_data(show_spinner="Probando de 1 a 6 grupos y midiendo su estabilidad…")
-def evaluacion_k():
+def evaluacion_k(version):
     return h.evaluar_k(modelos)
 
 
 @st.cache_data
-def particiones_k():
+def particiones_k(version):
     return h.particiones_generos(modelos), h.silhouette_epocas_por_componentes(modelos)
 
 
 @st.cache_data
-def tablas_historia():
+def tablas_historia(version):
     return {
         "poblacion": h.tabla_poblacion(origen["poblacion"], silver),
         "trampa": h.tabla_trampa(silver),
@@ -70,8 +80,8 @@ def tablas_historia():
     }
 
 
-usuarios = usuarios_tabla()
-T = tablas_historia()
+usuarios = usuarios_tabla(VERSION)
+T = tablas_historia(VERSION)
 h.fijar_ejes(T["cargas_todas"])   # cada eje de las PCA con nombre, para todos los gráficos
 EJEMPLO = int(usuarios["userId"].iloc[0])   # el mismo usuario que aparece primero en la sección 8
 act = h.resumen_actividad(silver)
@@ -151,7 +161,7 @@ st.markdown(
     "recomendaciones, y la decisión que tomamos en cada paso."
 )
 
-ev, ari, sil_conjunto = evaluacion_k()
+ev, ari, sil_conjunto = evaluacion_k(VERSION)
 R = origen["resumen"]
 estaciones = h.tabla_recorrido(R)
 st.markdown("**El recorrido.** Partimos de los votos crudos y llegamos a recomendar películas:")
@@ -422,7 +432,7 @@ with st.expander("Ver los números", icon=":material/table_chart:"):
 # 6 · Cuántos grupos
 # ---------------------------------------------------------------------------
 
-particiones, epocas_por_comp = particiones_k()
+particiones, epocas_por_comp = particiones_k(VERSION)
 
 seccion(
     5,
@@ -708,7 +718,7 @@ with st.container(border=True):
 
 @st.fragment
 def un_usuario():
-    ids, zg, zd = espacios()
+    ids, zg, zd = espacios(VERSION)
     perfiles = ["Todos"] + sorted(usuarios["perfil"].unique())
     c1, c2 = st.columns([2, 1], vertical_alignment="bottom")
     with c1:
