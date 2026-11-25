@@ -30,7 +30,11 @@ COLUMNAS_DECADAS = [
 NOMBRES_GRUPOS = {
     "generos": {
         0: "Drama, historia y bélico",       # drama +0,19, historia +0,15, bélico +0,14
-        1: "Sin preferencias marcadas",      # todas las afinidades entre −0,10 y +0,06
+        # 1: afinidades suaves (entre −0,10 y +0,06), pero es el único grupo que no castiga la acción
+        # (−0,02) ni la ciencia ficción (−0,01): en los dos géneros es el más alto de los cuatro.
+        # En películas: Matrix, Star Wars, El Señor de los Anillos y las de superhéroes le gustan
+        # más que a cualquier otro grupo. Califica alto todo (3,67), por eso la afinidad queda cerca de 0.
+        1: "Acción y ciencia ficción",
         2: "Animación, familia y fantasía",  # animación +0,15, familia +0,10; rechaza terror
         3: "Crimen, misterio y suspenso",    # crimen +0,19, suspenso +0,16, misterio +0,15; rechaza familia
     },
