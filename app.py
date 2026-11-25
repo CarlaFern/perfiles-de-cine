@@ -897,33 +897,71 @@ with st.container(border=True):
         ":blue[:material/info: **Limitaciones y alcance del proyecto**]"
     )
 
-    st.markdown(
-        "**1. Trabajamos con una muestra limitada.**\n\n"
+st.subheader("Limitaciones y alcance del proyecto", anchor=False)
+
+limitaciones = [
+    (
+        "Trabajamos con una muestra limitada.",
         "De los 200.948 usuarios de MovieLens, seleccionamos 5.000, "
         "con un máximo de 500 calificaciones por persona. Finalmente, "
         "3.503 usuarios cumplieron los requisitos del modelo. "
         "También limitamos la consulta a TMDB a las 10.000 películas "
         "más vistas de la muestra, por lo que los resultados no "
-        "representan necesariamente a todos los espectadores y películas.\n\n"
-
-        "**2. Los usuarios nuevos quedan afuera.**\n\n"
+        "representan necesariamente a todos los espectadores y películas."
+    ),
+    (
+        "Los usuarios nuevos quedan afuera.",
         "El modelo exige al menos 150 calificaciones para construir "
         "perfiles suficientemente respaldados. Esto reduce el ruido "
         "de historiales pequeños, pero impide recomendar a usuarios "
         "con pocas valoraciones, como alguien que calificó solamente "
-        "20 películas .\n\n"
-
-        "**3. Las épocas no necesariamente reflejan preferencias.**\n\n"
+        "20 películas."
+    ),
+    (
+        "Las épocas no necesariamente reflejan preferencias.",
         "Analizamos qué proporción del historial corresponde a cada "
         "época de estreno, pero tener más películas calificadas de "
-        "una década no significa necesariamente preferirla.\n\n"
-
-        "**4. No podemos garantizar que una película no haya sido vista.**\n\n"
+        "una década no significa necesariamente preferirla."
+    ),
+    (
+        "No podemos garantizar que una película no haya sido vista.",
         "MovieLens registra calificaciones, no reproducciones. "
         "El recomendador excluye las películas ya calificadas en los "
         "datos disponibles, pero no puede saber si el usuario vio "
         "otras películas sin calificarlas."
     )
+]
+
+# Misma paleta y orden que COLOR_GENERO en historia.py
+colores = [
+    h.CHARTREUSE,
+    h.QUEMADO,
+    h.NAVY,
+    h.ELECTRICO
+]
+
+with st.container(border=True):
+    for i, (titulo, descripcion) in enumerate(limitaciones):
+        col_num, col_texto = st.columns(
+            [1, 13],
+            vertical_alignment="top"
+        )
+
+        with col_num:
+            st.markdown(
+                f"<span style='color:{colores[i]};"
+                f"font-size:28px;font-weight:700;'>"
+                f"{i+1:02d}</span>",
+                unsafe_allow_html=True
+            )
+
+        with col_texto:
+            st.markdown(
+                f"**{titulo}**\n\n{descripcion}"
+            )
+
+        if i < len(limitaciones) - 1:
+            st.divider()
 
 
 st.space("medium")
