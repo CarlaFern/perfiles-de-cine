@@ -493,7 +493,9 @@ def tabla_variables(silver, modelos):
          "El bloque de épocas ya describe el historial temporal."),
     ]
     tabla = pd.DataFrame(filas, columns=["Variable", "Columnas", "Entra", "Por qué"])
-    tabla["Entra"] = tabla["Entra"].map({True: "✅ Entra", False: "— Sale"})
+    tabla["Entra"] = tabla["Entra"].map({
+    True: ":green[✓] Entra",
+    False: ":red[✕] Sale"})
     return tabla
 
 
@@ -1047,7 +1049,7 @@ def grafico_perfil_generos(largo, orden):
                         legend=alt.Legend(orient="top", direction="vertical", labelLimit=0)),
         tooltip=["genero:N", "grupo:N", alt.Tooltip("afinidad:Q", format="+.3f")])
     cero = alt.Chart(pd.DataFrame({"x": [0]})).mark_rule(color=GRIS, strokeDash=[3, 3]).encode(x="x:Q")
-    return (cero + regla + puntos).properties(width=320, height=400, title=titulo(
+    return (cero + regla + puntos).properties(width=430, height=400, title=titulo(
         ["Los cuatro grupos tienen", "perfiles de género distintos"],
         ["Cada punto es la afinidad media de un grupo. Los géneros",
          "están ordenados según cuánto se diferencian los grupos."]))
@@ -1073,7 +1075,7 @@ def grafico_perfil_epocas(largo):
         color=alt.Color("grupo:N", scale=COLOR_DECADA, title=None,
                         legend=alt.Legend(orient="top", direction="horizontal", columns=1, labelLimit=0)),
         tooltip=["grupo:N", "epoca:N", alt.Tooltip("pct:Q", format=".1f")],
-    ).properties(width=300, height=400, title=titulo(
+    ).properties(width=400, height=400, title=titulo(
         ["Un grupo ve sobre todo cine de los 2000 y 2010;", "el otro, de los 90 para atrás"],
         ["Mide qué hay en el historial,", "no qué época le gusta más a cada uno."]))
 
@@ -1121,7 +1123,7 @@ def grafico_actividad_perfiles(usuarios, rho):
         tooltip=[alt.Tooltip("userId:N", title="Usuario"), alt.Tooltip("perfil:N", title="Perfil"),
                  alt.Tooltip("rating_promedio_general:Q", format=".2f", title="Promedio"),
                  alt.Tooltip("cantidad_valoraciones_total:Q", title="Ratings", format=",")],
-    ).add_params(zona).properties(width=420, height=400)
+    ).add_params(zona).properties(width=650, height=400)
     conteo = alt.Chart(datos).transform_filter(zona).transform_aggregate(
         n="count()", groupby=["perfil"]).transform_joinaggregate(total="sum(n)").transform_calculate(
         pct="datum.n / datum.total").mark_bar(cornerRadiusEnd=3, cursor="pointer").encode(
@@ -1133,8 +1135,7 @@ def grafico_actividad_perfiles(usuarios, rho):
         color=alt.Color("perfil:N", scale=escala, legend=None),
         opacity=alt.condition(perfil, alt.value(1), alt.value(0.3)),
         tooltip=[alt.Tooltip("perfil:N", title="Perfil"), alt.Tooltip("n:Q", title="Usuarios"),
-                 alt.Tooltip("pct:Q", title="%", format=".1%")]).add_params(perfil).properties(
-        width=140, height=400)
+                 alt.Tooltip("pct:Q", title="%", format=".1%")]).add_params(perfil).properties(width=320, height=400)
     return alt.hconcat(nube, conteo, spacing=30).properties(title=titulo(
         "Los perfiles no son «los que califican mucho» contra «los que califican poco»",
         [f"La actividad casi no se relaciona con los ejes del modelo (|ρ| ≤ {dec(rho.abs().max(), 2)}).",
@@ -1171,7 +1172,7 @@ def grafico_copa(usuarios, espacio, minimo):
         tooltip=[alt.Tooltip("userId:N", title="Usuario"), alt.Tooltip("perfil:N", title="Perfil"),
                  alt.Tooltip("cantidad_valoraciones_total:Q", title="Ratings", format=","),
                  alt.Tooltip("genero_afin:N", title="Género con más afinidad")],
-    ).add_params(elegido, brush).properties(width=450, height=440)
+    ).add_params(elegido, brush).properties(width=650, height=440)
 
     largo = alt.Chart(datos).transform_fold(cols, as_=["variable", "valor"]).transform_calculate(
         nombre="substring(datum.variable, 2)")
@@ -1185,7 +1186,7 @@ def grafico_copa(usuarios, espacio, minimo):
                  alt.Tooltip("count():Q", title="Usuarios")])
     todos = largo.mark_tick(color=TEXTO, thickness=2, size=16).encode(
         y=alt.Y("nombre:N", sort=orden), x="mean(valor):Q")
-    panel = (barras + todos).properties(width=300, height=440, title=alt.Title(
+    panel = (barras + todos).properties(width=420, height=440, title=alt.Title(
         "Perfil de la selección", subtitle="Barra: usuarios marcados · raya negra: todos",
         anchor="start", fontSize=14, subtitleColor=GRIS_CLARO))
     return alt.hconcat(nube, panel, spacing=30), len(datos)

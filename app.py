@@ -286,7 +286,12 @@ with der:
              "Con pocas películas se acerca a cero; con muchas, casi no cambia. "
              f"El {h.SUAVIZADO} se lee así: con {h.SUAVIZADO} películas del género, la diferencia "
              "queda en la mitad.")
-grafico(h.grafico_trampa(T["trampa"]), "Dispersión de la afinidad por género según cantidad de películas")
+
+with st.container(horizontal=True, horizontal_alignment="center"):
+    st.altair_chart(
+        h.grafico_trampa(T["trampa"]),
+        width="content",
+        alt="Dispersión de la afinidad por género según cantidad de películas")
 como_leer('Cada columna del eje x junta los pares usuario × género según cuántas películas de ese género calificó el usuario. El eje y es la diferencia entre su promedio en el género y su promedio general (0 = igual que su promedio). La banda clara cubre el 90 % central de esos pares; la oscura, el 50 %; la línea es la mediana. Gris: el promedio crudo; burnt orange: el amortiguado. Con pocas películas la banda gris es muy ancha, porque cualquier diferencia puede salir por azar, y la de burnt orange se cierra hacia 0.')
 with st.expander("Ver los números", icon=":material/table_chart:"):
     st.dataframe(T["trampa"].round(3), hide_index=True, alt="Percentiles de la afinidad por tramo")
@@ -464,10 +469,13 @@ with der:
     )
 
 # RESULTADOS DE SILHOUETTE, CODO Y ESTABILIDAD
-grafico(
-    h.grafico_senales(ev),
-    "Comparación de las medidas de calidad del agrupamiento"
-)
+
+with st.container(horizontal=True, horizontal_alignment="center"):
+    st.altair_chart(
+        h.grafico_senales(ev),
+        width="content",
+        alt="Comparación de las medidas de calidad del agrupamiento")
+
 
 como_leer(
     "Cada panel representa uno de los dos bloques del modelo. "
@@ -491,8 +499,12 @@ st.markdown(
     "cuando pasamos de una división más simple a otra más detallada."
 )
 
-st.altair_chart(h.grafico_k2_k4(particiones), width="content",
-                alt="Usuarios en el espacio PCA de géneros, agrupados con K=2 y con K=4")
+
+with st.container(horizontal=True, horizontal_alignment="center"):
+    st.altair_chart(
+        h.grafico_k2_k4(particiones),
+        width="content",
+        alt="Usuarios en el espacio PCA de géneros, agrupados con K=2 y con K=4")
 
 como_leer(
     "\n\n"
@@ -600,17 +612,32 @@ como_leer(
     "categorías de épocas. La cantidad de usuarios y el porcentaje dentro de cada grupo "
     "aparecen escritos en cada bloque."
 )
-st.altair_chart(h.grafico_perfiles(perfil_g, orden_g, perfil_e), width="content",
-                alt="Afinidad media por género y porcentaje del historial por época en cada grupo")
+
+# Gráficos originales, centrados
+with st.container(horizontal=True, horizontal_alignment="center"):
+    st.altair_chart(
+        h.grafico_perfiles(perfil_g, orden_g, perfil_e),
+        width="content",
+        alt="Afinidad media por género y porcentaje del historial por época en cada grupo"
+    )
+
+# Explicaciones debajo de cada gráfico
 c1, c2 = st.columns(2, gap="large")
+
 with c1:
     como_leer(
-        "Cada fila es un género. Los cuatro puntos muestran la afinidad media de cada grupo: "
-        "a la derecha del 0, ese género les gusta más que su propio promedio; a la izquierda, menos. "
-        "La línea une el grupo con menor y mayor afinidad: cuanto más larga, más diferencia hay entre los grupos."
+        "Cada fila es un género. Los cuatro puntos muestran la afinidad media "
+        "de cada grupo: a la derecha del 0, ese género les gusta más que su "
+        "propio promedio; a la izquierda, menos. La línea une el grupo con "
+        "menor y mayor afinidad: cuanto más larga, más diferencia hay entre los grupos."
     )
+
 with c2:
-    como_leer('Para cada época (eje x) hay dos barras, una por grupo de época: qué parte del historial de ese grupo, en promedio, es de películas de esa época. Mide qué ven, no cuánto les gustan.')
+    como_leer(
+        "Para cada época (eje x) hay dos barras, una por grupo de época: "
+        "qué parte del historial de ese grupo, en promedio, es de películas "
+        "de esa época. Mide qué ven, no cuánto les gustan."
+    )
 
 st.subheader("¿Gustos distintos, o gente que califica más y gente que califica menos?")
 izq, der = st.columns([3, 2], gap="large")
@@ -651,8 +678,12 @@ st.markdown(
     "Elegí un género abajo para ver dónde están los usuarios a los que más les gusta."
 )
 
-st.altair_chart(h.grafico_fanaticos(usuarios), width="content",
-                alt="Mapa de calor del espacio de géneros con los usuarios de cada género resaltados")
+
+with st.container(horizontal=True, horizontal_alignment="center"):
+    st.altair_chart(
+        h.grafico_fanaticos(usuarios),
+        width="content",
+        alt="Mapa de calor del espacio de géneros con los usuarios de cada género resaltados")
 
 como_leer(
     'Arriba, el plano de los dos primeros ejes de géneros dividido en celdas: cuanto más oscura la celda, '
@@ -680,7 +711,7 @@ def copa():
                            key="minimo_copa")
     chart, n = h.grafico_copa(usuarios, espacio, minimo)
     st.caption(f"Mostrando {h.fmt(n)} de {h.fmt(len(usuarios))} usuarios.")
-    st.altair_chart(chart, alt="Nube de usuarios con selección y perfil de la selección")
+    st.altair_chart(chart, width="content", alt="Nube de usuarios con selección y perfil de la selección")
     como_leer("Cada punto es un usuario en los dos primeros ejes del espacio elegido, con el color de su grupo. "
               "Arrastrá para marcar un rectángulo: las barras de la derecha muestran el promedio de los "
               "marcados en cada variable, y la raya negra, el de todos los usuarios. Clic en la leyenda para "
@@ -739,8 +770,13 @@ def un_usuario():
             st.badge(fila["nombre_genero"], icon=":material/theater_comedy:", color="orange")
             st.badge(fila["nombre_decada"], icon=":material/calendar_month:", color="blue")
 
-    st.altair_chart(h.grafico_usuario_espacios(usuarios, usuario, vecinos), width="content",
-                    alt="Posición del usuario y sus vecinos en el espacio de géneros y en el de épocas")
+    
+    with st.container(horizontal=True, horizontal_alignment="center"):
+        st.altair_chart(
+            h.grafico_usuario_espacios(usuarios, usuario, vecinos),
+            width="content",
+            alt="Posición del usuario y sus vecinos en el espacio de géneros y en el de épocas")
+
     como_leer("Cada punto gris es un usuario, en los dos primeros ejes de cada espacio. En burnt orange está el "
               "usuario elegido y en chartreuse, sus 5 más parecidos. Ojo: los parecidos se buscan con todos los "
               "ejes (8 de géneros y 3 de épocas), así que en este plano de dos ejes pueden verse algo separados.")
