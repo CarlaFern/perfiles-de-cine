@@ -731,11 +731,13 @@ def un_usuario():
 
     c1, c2 = st.columns(2, gap="large")
     with c1:
-        grafico(h.grafico_usuario_en_espacio(usuarios, usuario, vecinos, "Géneros"),
-                "Posición del usuario en el espacio de géneros")
+        st.altair_chart(
+            h.grafico_usuario_en_espacio(usuarios, usuario, vecinos, "Géneros"),
+            width="content", alt="Usuario y vecinos en el espacio de géneros")
     with c2:
-        grafico(h.grafico_usuario_en_espacio(usuarios, usuario, vecinos, "Épocas"),
-                "Posición del usuario en el espacio de épocas")
+        st.altair_chart(
+            h.grafico_usuario_en_espacio(usuarios, usuario, vecinos, "Épocas"),
+            width="content",alt="Usuario y vecinos en el espacio de épocas")
     como_leer("Cada punto gris es un usuario, en los dos primeros ejes de cada espacio. En burnt orange está el "
               "usuario elegido y en chartreuse, sus 5 más parecidos. Ojo: los parecidos se buscan con todos los "
               "ejes (8 de géneros y 3 de épocas), así que en este plano de dos ejes pueden verse algo separados.")
