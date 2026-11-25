@@ -892,12 +892,7 @@ def un_usuario():
 un_usuario()
 
 
-with st.container(border=True):
-    st.markdown(
-        ":blue[:material/info: **Limitaciones y alcance del proyecto**]"
-    )
-
-st.subheader("Limitaciones y alcance del proyecto", anchor=False)
+st.markdown("#### Limitaciones y alcance del proyecto")
 
 limitaciones = [
     (
