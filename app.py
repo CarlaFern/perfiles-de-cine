@@ -474,29 +474,13 @@ st.markdown(
     "conjuntos de preferencias. Sin embargo, estos grupos pueden "
     "contener diferencias internas que vale la pena investigar.\n\n"
     "Para observarlo, comparamos esa división con **K=4**, "
-    "manteniendo el mismo espacio PCA."
-    "En el segundo gráfico mostramos directamente la división en cuatro grupos, "
-    "sobre el mismo espacio PCA. Así podemos comparar cómo cambia la segmentación "
+    "manteniendo el mismo espacio PCA y los mismos límites en los ejes. "
+    "Así podemos comparar cómo cambia la segmentación "
     "cuando pasamos de una división más simple a otra más detallada."
 )
 
-k2, k4 = h.grafico_k2_k4(particiones)
-
-col_k2, col_k4 = st.columns(2, gap="large")
-
-with col_k2:
-    st.markdown("**K=2 · Mayor separación**")
-    grafico(
-        k2,
-        "Distribución de usuarios agrupados con K=2"
-    )
-
-with col_k4:
-    st.markdown("**K=4 · Mayor detalle**")
-    grafico(
-        k4,
-        "Distribución facetada de los cuatro grupos"
-    )
+st.altair_chart(h.grafico_k2_k4(particiones), width="content",
+                alt="Usuarios en el espacio PCA de géneros, agrupados con K=2 y con K=4")
 
 como_leer(
     "\n\n"

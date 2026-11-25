@@ -835,106 +835,42 @@ def grafico_senales(evaluacion):
 
 def grafico_k2_k4(particiones):
     """
-    Compara K=2 con K=4 en el espacio PCA de géneros.
-    Los dos gráficos tienen el mismo formato.
-    """
+    K=2 al lado de K=4 en el mismo espacio PCA de géneros, como un solo gráfico.
 
-    datos_k2 = particiones[particiones["k"] == 2].copy()
-    datos_k4 = particiones[particiones["k"] == 4].copy()
+    Va en una pieza con tamaño fijo (no estirado al ancho de una columna): si cada
+    panel se estira por separado, Vega achica el área de dibujo para hacer lugar a
+    la leyenda y a los títulos de dos renglones, y la nube queda aplastada.
+    """
     mapa_k4 = {
         "Grupo 1": "Drama, historia y bélico",
         "Grupo 2": "Crimen, misterio y suspenso",
         "Grupo 3": "Animación, familia y fantasía",
         "Grupo 4": "Acción, aventura y ciencia ficción",
     }
-
+    datos_k2 = particiones[particiones["k"] == 2].copy()
+    datos_k4 = particiones[particiones["k"] == 4].copy()
     datos_k4["grupo"] = datos_k4["grupo"].map(mapa_k4)
 
-    grupos_2 = ["Grupo 1", "Grupo 2"]
-    grupos_4 = list(mapa_k4.values())
+    # mismos límites en los dos paneles, para que la comparación sea punto a punto
+    escala_x = alt.Scale(domain=[float(particiones["x"].min()), float(particiones["x"].max())], nice=True)
+    escala_y = alt.Scale(domain=[float(particiones["y"].min()), float(particiones["y"].max())], nice=True)
+    x = alt.X("x:Q", title=titulo_eje("Géneros", 1), scale=escala_x, axis=alt.Axis(grid=False))
+    y = alt.Y("y:Q", title=titulo_eje("Géneros", 2), scale=escala_y, axis=alt.Axis(grid=False))
 
-    escala_x = alt.Scale(
-        domain=[
-            float(particiones["x"].min()),
-            float(particiones["x"].max())
-        ],
-        nice=False
-    )
+    def panel(datos, nombre, grupos, colores):
+        return alt.Chart(datos).mark_circle(size=14, opacity=0.5).encode(
+            x=x, y=y,
+            color=alt.Color("grupo:N", title=None, scale=alt.Scale(domain=grupos, range=colores),
+                            legend=alt.Legend(orient="top", direction="horizontal", columns=2,
+                                              labelLimit=0, symbolOpacity=1, columnPadding=16)),
+            tooltip=[alt.Tooltip("grupo:N", title="Grupo")],
+        ).properties(width=440, height=340, title=alt.Title(nombre, anchor="start", fontSize=13))
 
-    escala_y = alt.Scale(
-        domain=[
-            float(particiones["y"].min()),
-            float(particiones["y"].max())
-        ],
-        nice=False
-    )
+    k2 = panel(datos_k2, "K=2 · Mayor separación", ["Grupo 1", "Grupo 2"], [EPOCA_RECIENTE, QUEMADO])
+    k4 = panel(datos_k4, "K=4 · Mayor detalle", list(mapa_k4.values()),
+               [CHARTREUSE, QUEMADO, NAVY, ELECTRICO])
+    return alt.hconcat(k2, k4, spacing=50).resolve_scale(color="independent").configure_view(stroke=None)
 
-    x = alt.X(
-        "x:Q",
-        title=titulo_eje("Géneros", 1),
-        scale=escala_x,
-        axis=alt.Axis(grid=False)
-    )
-
-    y = alt.Y(
-        "y:Q",
-        title=titulo_eje("Géneros", 2),
-        scale=escala_y,
-        axis=alt.Axis(grid=False)
-    )
-
-    grafico_2 = alt.Chart(datos_k2).mark_circle(
-        size=22,
-        opacity=0.6
-    ).encode(
-        x=x,
-        y=y,
-        color=alt.Color(
-            "grupo:N",
-            title="Grupo",
-            scale=alt.Scale(
-                domain=grupos_2,
-                range=[EPOCA_RECIENTE, QUEMADO]
-            ),
-            legend=alt.Legend(orient="right")
-        ),
-        tooltip=[
-            alt.Tooltip("grupo:N", title="Grupo")
-        ]
-    ).properties(
-        width=350,
-        height=370
-    ).configure_view(stroke=None)
-
-    grafico_4 = alt.Chart(datos_k4).mark_circle(
-        size=22,
-        opacity=0.6
-    ).encode(
-        x=x,
-        y=y,
-        color=alt.Color(
-            "grupo:N",
-            title="Grupo",
-            scale=alt.Scale(
-                domain=grupos_4,
-                range=[CHARTREUSE, QUEMADO, NAVY, ELECTRICO]
-            ),
-            legend=alt.Legend(
-                orient="bottom",
-                direction="vertical",
-                columns=1,
-                labelLimit=0
-            )
-        ),
-        tooltip=[
-            alt.Tooltip("grupo:N", title="Grupo")
-        ]
-    ).properties(
-        width=350,
-        height=370
-    ).configure_view(stroke=None)
-    
-    return grafico_2, grafico_4
 
 def grafico_elegir_k(particiones, evaluacion):
     """B · Botones para elegir k: la nube de géneros se repinta y las tres medidas resaltan ese k."""
