@@ -571,6 +571,17 @@ st.markdown(
     "lo que mira**. Las dos respuestas no dependen una de la otra, así que cada combinación es un perfil."
 )
 grafico(h.grafico_cruce(cruce, p_chi, v_cramer), "Cruce de los grupos de género y de época")
+
+grupos_ordenados = sorted(cruce["nombre_genero"].unique())
+
+st.caption(
+    "**Grupos de géneros (de izquierda a derecha):**  \n"
+    + " · ".join(
+        f"**G{i}:** {nombre}"
+        for i, nombre in enumerate(grupos_ordenados, start=1)
+    )
+)
+
 como_leer(
     "Cada columna corresponde a un grupo de género y su ancho indica cuántos usuarios tiene. "
     "Dentro de cada columna, los bloques muestran cómo se reparte ese grupo entre las dos "

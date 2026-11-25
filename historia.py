@@ -947,8 +947,20 @@ def grafico_cruce(largo, p, v):
     t["bloque"] = [f"{fmt(u)} usuarios · {dec(q * 100, 0)} %" for u, q in zip(t["usuarios"], t["parte"])]
     # texto dentro del bloque: blanco sobre el azul oscuro, tinta sobre el lavanda
     t["tinta"] = t["nombre_decada"].map({DECADAS_GRUPOS[0]: "#ffffff", DECADAS_GRUPOS[1]: TEXTO})
-    cabeceras = t.drop_duplicates("nombre_genero").assign(
-        cabecera=lambda d: [f"{g} · {dec(anchos[g] * 100, 0)} % de los usuarios" for g in d["nombre_genero"]])
+    
+    # Identificadores cortos para evitar superposiciones.
+    grupos_ordenados = sorted(t["nombre_genero"].unique())
+
+    id_grupo = {
+        nombre: f"G{i}"
+        for i, nombre in enumerate(grupos_ordenados, start=1)}
+
+    cabeceras = t.drop_duplicates("nombre_genero").copy()
+
+    cabeceras["cabecera"] = cabeceras["nombre_genero"].map(
+        lambda nombre: (
+            f"{id_grupo[nombre]} · "
+            f"{dec(anchos[nombre] * 100, 0)} %" ))
 
     sx = alt.Scale(domain=[0, 1], nice=False)
     sy = alt.Scale(domain=[0, 1.12], nice=False)
