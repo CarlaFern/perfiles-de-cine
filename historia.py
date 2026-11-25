@@ -953,8 +953,7 @@ def grafico_cruce(largo, p, v):
 
     id_grupo = {
         nombre: f"G{i}"
-        for i, nombre in enumerate(grupos_ordenados, start=1)
-}
+        for i, nombre in enumerate(grupos_ordenados, start=1)}
 
     cabeceras = t.drop_duplicates("nombre_genero").copy()
 
@@ -1419,68 +1418,16 @@ def grafico_favoritas(favoritas):
     ).configure_view(stroke=None)
 
 
+
 def grafico_usuario_en_espacio(usuarios, usuario, vecinos, espacio):
     px, py = ("G_PC1", "G_PC2") if espacio == "Géneros" else ("D_PC1", "D_PC2")
-
     d = usuarios[["userId", px, py]].rename(columns={px: "x", py: "y"}).copy()
     d["tipo"] = "Resto"
     d.loc[d["userId"].isin(vecinos), "tipo"] = "Los 5 más parecidos"
     d.loc[d["userId"] == usuario, "tipo"] = "Usuario elegido"
     d["orden"] = d["tipo"].map({"Resto": 0, "Los 5 más parecidos": 1, "Usuario elegido": 2})
-
-    escala = alt.Scale(
-        domain=["Resto", "Los 5 más parecidos", "Usuario elegido"],
-        range=[APAGADO, CHARTREUSE, QUEMADO]
-    )
-
-    # dominio fijo con padding, para evitar que se aplaste al rerenderizar
-    min_x, max_x = float(d["x"].min()), float(d["x"].max())
-    min_y, max_y = float(d["y"].min()), float(d["y"].max())
-
-    pad_x = max((max_x - min_x) * 0.06, 0.5)
-    pad_y = max((max_y - min_y) * 0.10, 0.5)
-
-    escala_x = alt.Scale(domain=[min_x - pad_x, max_x + pad_x], nice=False)
-    escala_y = alt.Scale(domain=[min_y - pad_y, max_y + pad_y], nice=False)
-
-    return alt.Chart(d).mark_circle().encode(
-        x=alt.X(
-            "x:Q",
-            title=titulo_eje(espacio, 1),
-            scale=escala_x,
-            axis=alt.Axis(grid=False)
-        ),
-        y=alt.Y(
-            "y:Q",
-            title=titulo_eje(espacio, 2),
-            scale=escala_y,
-            axis=alt.Axis(grid=False)
-        ),
-        color=alt.Color(
-            "tipo:N",
-            scale=escala,
-            title=None,
-            legend=alt.Legend(orient="top", direction="horizontal")
-        ),
-        size=alt.Size(
-            "tipo:N",
-            scale=alt.Scale(
-                domain=["Resto", "Los 5 más parecidos", "Usuario elegido"],
-                range=[14, 90, 200]
-            ),
-            legend=None
-        ),
-        order=alt.Order("orden:Q"),
-        tooltip=[
-            alt.Tooltip("userId:N", title="Usuario"),
-            alt.Tooltip("tipo:N", title="Tipo")
-        ],
-    ).properties(
-        width=420,
-        height=320,
-        title=alt.Title(f"Espacio de {espacio.lower()}", anchor="start", fontSize=14)
-    ).configure_view(stroke=None)
-
+    escala = alt.Scale(domain=["Resto", "Los 5 más parecidos", "Usuario elegido"],
+                       range=[APAGADO, CHARTREUSE, QUEMADO])
     return alt.Chart(d).mark_circle().encode(
         x=alt.X("x:Q", title=titulo_eje(espacio, 1), scale=alt.Scale(zero=False)),
         y=alt.Y("y:Q", title=titulo_eje(espacio, 2), scale=alt.Scale(zero=False)),
