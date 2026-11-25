@@ -850,10 +850,23 @@ def grafico_k2_k4(particiones):
     la leyenda y a los títulos de dos renglones, y la nube queda aplastada.
     """
     # «Grupo i» es el cluster i − 1: el mismo K-means que el del modelo, con la misma semilla
-    mapa_k4 = {f"Grupo {c + 1}": nombre for c, nombre in NOMBRES_GRUPOS["generos"].items()}
+
+    mapa_k2 = {
+        "Grupo 1": "Animación, aventura y familia",
+        "Grupo 2": "Drama, historia y crimen"
+    }
+
+    mapa_k4 = {
+        f"Grupo {c + 1}": nombre
+        for c, nombre in NOMBRES_GRUPOS["generos"].items()
+    }
+
     datos_k2 = particiones[particiones["k"] == 2].copy()
     datos_k4 = particiones[particiones["k"] == 4].copy()
+
+    datos_k2["grupo"] = datos_k2["grupo"].map(mapa_k2)
     datos_k4["grupo"] = datos_k4["grupo"].map(mapa_k4)
+
 
     # mismos límites en los dos paneles, para que la comparación sea punto a punto
     escala_x = alt.Scale(domain=[float(particiones["x"].min()), float(particiones["x"].max())], nice=True)
@@ -870,7 +883,7 @@ def grafico_k2_k4(particiones):
             tooltip=[alt.Tooltip("grupo:N", title="Grupo")],
         ).properties(width=370, height=330, title=alt.Title(nombre, anchor="start", fontSize=13))
 
-    k2 = panel(datos_k2, "K=2 · Mayor separación", ["Grupo 1", "Grupo 2"], [EPOCA_RECIENTE, QUEMADO])
+    k2 = panel(datos_k2, "K=2 · Mayor separación", list(mapa_k2.values()), [EPOCA_RECIENTE, QUEMADO])
     k4 = panel(datos_k4, "K=4 · Mayor detalle", list(mapa_k4.values()),
                [CHARTREUSE, QUEMADO, NAVY, ELECTRICO])
     return alt.hconcat(k2, k4, spacing=50).resolve_scale(color="independent").configure_view(stroke=None)
