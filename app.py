@@ -955,8 +955,14 @@ with st.container(border=True):
                 f"**{titulo}**\n\n{descripcion}"
             )
 
+        
         if i < len(limitaciones) - 1:
-            st.divider()
+            st.markdown(
+                "<hr style='margin: 0; border: none; "
+                "border-top: 1px solid #e1e3e8;'>",
+                unsafe_allow_html=True
+            )
+
 
 
 st.space("medium")
